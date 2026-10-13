@@ -1,0 +1,29 @@
+{
+  "storageRevision": 12,
+  "document": {
+    "schemaVersion": 2,
+    "routines": [
+      {
+        "id": "corrupt-routine",
+        "name": "Corrupt Synthetic Routine",
+        "sessions": [
+          {
+            "id": "corrupt-session",
+            "name": "Corrupt Session",
+            "order": 1,
+            "exercises": [
+              {
+                "id": "corrupt-exercise",
+                "name": "Corrupt Exercise",
+                "sets": 3,
+                "repetitions": 10,
+                "weightKg": -20
+              }
+            ]
+          }
+        ],
+        "snapshots": []
+      }
+    ]
+  }
+}

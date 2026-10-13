@@ -1,0 +1,15 @@
+{
+  "storageRevision": 11,
+  "document": {
+    "schemaVersion": 2,
+    "routines": [
+      {
+        "id": "recovery-routine",
+        "name": "Recovered Synthetic Routine",
+        "notes": "Known recovery copy",
+        "sessions": [],
+        "snapshots": []
+      }
+    ]
+  }
+}

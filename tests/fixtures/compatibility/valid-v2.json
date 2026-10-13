@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 2,
+  "routines": [
+    {
+      "id": "routine-power",
+      "name": "Power Base",
+      "notes": "Synthetic strength routine",
+      "sessions": [
+        {
+          "id": "session-upper",
+          "name": "Upper",
+          "order": 2,
+          "exercises": [
+            {
+              "id": "exercise-bench",
+              "name": "Bench Press",
+              "sets": 3,
+              "repetitions": 10,
+              "weightKg": 40
+            }
+          ]
+        },
+        {
+          "id": "session-lower",
+          "name": "Lower",
+          "order": 9,
+          "exercises": [
+            {
+              "id": "exercise-squat",
+              "name": "Squat",
+              "sets": 4,
+              "repetitions": 8,
+              "weightKg": 65
+            }
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "id": "snapshot-first",
+          "capturedAt": "2026-01-01T10:00:00.000Z",
+          "entries": [
+            {
+              "name": "Bench Press",
+              "foldedName": "bench press",
+              "sets": 3,
+              "repetitions": 8,
+              "weightKg": 40,
+              "repetitionsProgress": "first",
+              "weightProgress": "first"
+            },
+            {
+              "name": "Squat",
+              "foldedName": "squat",
+              "sets": 3,
+              "repetitions": 10,
+              "weightKg": 60,
+              "repetitionsProgress": "first",
+              "weightProgress": "first"
+            }
+          ]
+        },
+        {
+          "id": "snapshot-second",
+          "capturedAt": "2026-01-02T10:00:00.000Z",
+          "entries": [
+            {
+              "name": "Bench Press",
+              "foldedName": "bench press",
+              "sets": 3,
+              "repetitions": 10,
+              "weightKg": 40,
+              "repetitionsProgress": "increased",
+              "weightProgress": "same"
+            },
+            {
+              "name": "Squat",
+              "foldedName": "squat",
+              "sets": 4,
+              "repetitions": 8,
+              "weightKg": 65,
+              "repetitionsProgress": "decreased",
+              "weightProgress": "increased"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "routine-mobility",
+      "name": "Mobility",
+      "sessions": [],
+      "snapshots": []
+    }
+  ]
+}
