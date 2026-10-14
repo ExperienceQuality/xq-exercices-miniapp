@@ -94,13 +94,15 @@ describe('Training session acceptance', () => {
     for (let index = 1; index <= 8; index += 1) {
       await addSession(`Synthetic Session ${index}`);
     }
-    const text = await bodyText();
-    let previous = -1;
-    for (let index = 1; index <= 8; index += 1) {
-      const current = text.indexOf(`Synthetic Session ${index}`);
-      assert.ok(current > previous);
-      previous = current;
-    }
+    const sessionNames = await browser.execute(() =>
+      [...document.querySelectorAll('[role="tab"]')].map((element) =>
+        element.textContent?.trim(),
+      ),
+    );
+    assert.deepEqual(
+      sessionNames,
+      Array.from({ length: 8 }, (_, index) => `Synthetic Session ${index + 1}`),
+    );
   });
 
   it('SESSION-06 through SESSION-08 retain identity/content, delete without renumbering, and persist (FIT-017, FIT-018, FIT-019)', async () => {

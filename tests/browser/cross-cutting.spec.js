@@ -24,7 +24,11 @@ describe('Cross-cutting Chrome acceptance', () => {
     await addSession('Accessible Session');
     await click('Accessible Session');
     await addExercise({ name: 'Accessible Exercise' });
-    const result = await new AxeBuilder({ client: browser }).analyze();
+    // Chrome 155 can leave axe.runPartial() unresolved with no frames. Legacy
+    // mode uses axe.run() directly while preserving the same rule coverage.
+    const result = await new AxeBuilder({ client: browser })
+      .setLegacyMode()
+      .analyze();
     const blocking = result.violations.filter(({ impact }) =>
       ['serious', 'critical'].includes(impact),
     );

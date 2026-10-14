@@ -101,6 +101,12 @@ export async function importFixture(name) {
   const input = await $('input[type="file"]');
   await input.waitForExist();
   await input.setValue(fixturePath(name));
+  if (name === 'valid-v1.json' || name === 'valid-v2.json') {
+    await browser.waitUntil(
+      async () => (await bodyText()).includes('Fitness data imported.'),
+      { timeoutMsg: `Import did not complete for ${name}.` },
+    );
+  }
 }
 
 export async function allInteractiveControls() {
