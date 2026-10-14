@@ -28,10 +28,26 @@ export class FitnessController {
   editor: EditorKind = null;
   editingExerciseId: string | null = null;
   private busy = false;
+  private readonly listeners = new Set<() => void>();
+  private loadCompletion?: Promise<void>;
 
   constructor(private readonly deps: FitnessDependencies) {}
 
-  async load() {
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify() {
+    for (const listener of this.listeners) listener();
+  }
+
+  load(): Promise<void> {
+    this.loadCompletion = this.loadInternal();
+    return this.loadCompletion;
+  }
+
+  private async loadInternal() {
     this.status = 'loading';
     this.error = '';
     this.notice = '';
@@ -40,9 +56,18 @@ export class FitnessController {
       this.document = loaded.document as FitnessDocumentV2;
       this.revision = loaded.storageRevision;
       this.status = 'ready';
+      this.notify();
     } catch (error) {
       this.status = 'unavailable';
       this.error = safeError(error);
+      this.notify();
+    }
+  }
+
+  private async waitForLoad() {
+    await this.loadCompletion;
+    if (this.status === 'unavailable') {
+      throw new FitnessError('storage-unavailable', this.error);
     }
   }
 
@@ -61,14 +86,17 @@ export class FitnessController {
     this.selectedRoutineId = id;
     this.selectedSessionId =
       this.document.routines.find((r) => r.id === id)?.sessions[0]?.id ?? null;
+    this.notify();
   }
   selectSession(id: string) {
     this.selectedSessionId = id;
+    this.notify();
   }
   backToList() {
     this.selectedRoutineId = null;
     this.selectedSessionId = null;
     this.editor = null;
+    this.notify();
   }
   openEditor(
     kind: Exclude<EditorKind, null>,
@@ -77,11 +105,13 @@ export class FitnessController {
     this.editor = kind;
     this.editingExerciseId = exerciseId;
     this.error = '';
+    this.notify();
   }
   closeEditor() {
     this.editor = null;
     this.editingExerciseId = null;
     this.error = '';
+    this.notify();
   }
 
   private async commit(candidate: FitnessDocumentV2) {
@@ -95,8 +125,10 @@ export class FitnessController {
       );
       this.document = candidate;
       this.revision = result.storageRevision;
+      this.notify();
     } catch (error) {
       this.error = safeError(error);
+      this.notify();
       throw error;
     } finally {
       this.busy = false;
@@ -104,6 +136,7 @@ export class FitnessController {
   }
 
   async saveRoutine(name: string, notes: string) {
+    await this.waitForLoad();
     const candidate = createRoutine(
       this.document,
       { name, notes },
@@ -114,6 +147,7 @@ export class FitnessController {
     this.closeEditor();
   }
   async saveSession(name: string) {
+    await this.waitForLoad();
     if (!this.routine) throw missing('routine');
     const candidate = addSession(
       this.document,
@@ -128,6 +162,7 @@ export class FitnessController {
     this.closeEditor();
   }
   async renameSelectedSession(name: string) {
+    await this.waitForLoad();
     if (!this.routine || !this.session) throw missing('session');
     await this.commit(
       renameSession(this.document, this.routine.id, this.session.id, name),
@@ -135,13 +170,16 @@ export class FitnessController {
     this.closeEditor();
   }
   async removeSession() {
+    await this.waitForLoad();
     if (!this.routine || !this.session) throw missing('session');
     await this.commit(
       deleteSession(this.document, this.routine.id, this.session.id),
     );
     this.selectedSessionId = null;
+    this.notify();
   }
   async saveExercise(input: ExerciseInput) {
+    await this.waitForLoad();
     if (!this.routine || !this.session) throw missing('session');
     const candidate = this.editingExerciseId
       ? editExercise(
@@ -162,12 +200,14 @@ export class FitnessController {
     this.closeEditor();
   }
   async removeExercise(id: string) {
+    await this.waitForLoad();
     if (!this.routine || !this.session) throw missing('session');
     await this.commit(
       deleteExercise(this.document, this.routine.id, this.session.id, id),
     );
   }
   async snapshot() {
+    await this.waitForLoad();
     if (!this.routine) throw missing('routine');
     await this.commit(
       captureSnapshot(
@@ -178,9 +218,11 @@ export class FitnessController {
       ),
     );
     this.notice = 'Progress snapshot captured.';
+    this.notify();
   }
   async importFile(file: File | undefined) {
     if (!file) return;
+    await this.waitForLoad();
     this.notice = '';
     try {
       const result = await importFitnessDocument(
@@ -195,8 +237,10 @@ export class FitnessController {
       this.selectedRoutineId = null;
       this.selectedSessionId = null;
       this.notice = 'Fitness data imported.';
+      this.notify();
     } catch (error) {
       this.error = safeError(error);
+      this.notify();
     }
   }
 }

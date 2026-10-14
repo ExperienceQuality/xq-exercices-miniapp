@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import {
     createProductionNamespace,
     type FitnessDependencies,
   } from './dependencies';
   import { createIndexedDbFitnessRepository } from '../fitness/persistence/indexeddb-fitness-repository';
-  import { FitnessController } from './fitness-controller';
+  import { FitnessController, type EditorKind } from './fitness-controller';
   import type { ExerciseInput } from '../fitness/domain/commands';
   import '../styles/app.css';
 
@@ -16,6 +16,16 @@
     importFileReader: { readText: (file) => file.text() },
   };
   const controller = new FitnessController(dependencies);
+  const initialLoad = controller.load();
+  let renderVersion = 0;
+  const unsubscribe = controller.subscribe(() => {
+    renderVersion += 1;
+  });
+  onDestroy(unsubscribe);
+  // Render the local empty shell immediately; load success/error then replaces it
+  // without leaving the browser waiting on IndexedDB before controls appear.
+  let appStatus: 'loading' | 'ready' | 'unavailable' = 'ready';
+  let editorKind: EditorKind = null;
   let routineName = '',
     routineNotes = '',
     sessionName = '',
@@ -24,12 +34,33 @@
     repetitions = 10,
     weightKg = 0,
     confirmDelete = '';
-  onMount(() => {
-    void controller.load();
+  onMount(async () => {
+    await initialLoad;
+    appStatus = controller.status;
   });
+  const retryLoad = async () => {
+    await controller.load();
+    appStatus = controller.status;
+  };
+  const openRoutineEditor = () => {
+    editorKind = 'routine';
+    controller.openEditor('routine');
+    renderVersion += 1;
+  };
+  const openEditor = (kind: Exclude<EditorKind, null>) => {
+    editorKind = kind;
+    controller.openEditor(kind);
+    renderVersion += 1;
+  };
+  const closeEditor = () => {
+    editorKind = null;
+    controller.closeEditor();
+    renderVersion += 1;
+  };
   const saveRoutine = async () => {
     try {
       await controller.saveRoutine(routineName, routineNotes);
+      editorKind = null;
       routineName = '';
       routineNotes = '';
     } catch {
@@ -39,6 +70,7 @@
   const saveSession = async () => {
     try {
       await controller.saveSession(sessionName);
+      editorKind = null;
       sessionName = '';
     } catch {
       void 0;
@@ -53,6 +85,7 @@
     };
     try {
       await controller.saveExercise(input);
+      editorKind = null;
       exerciseName = '';
       sets = 3;
       repetitions = 10;
@@ -62,6 +95,7 @@
     }
   };
   const startExercise = (id: string | null = null) => {
+    editorKind = 'exercise';
     controller.openEditor('exercise', id);
     if (id) {
       const item = controller.session?.exercises.find((e) => e.id === id);
@@ -78,6 +112,7 @@
 
 <svelte:head><title>XQ Fitness</title></svelte:head>
 <main class="shell" aria-labelledby="app-title">
+  <span class="sr-only" aria-hidden="true">{renderVersion}</span>
   <header class="topbar">
     <div>
       <p class="eyebrow">XQ FITNESS</p>
@@ -95,21 +130,21 @@
       /></label
     >
   </header>
-  {#if controller.status === 'loading'}<section
+  {#if appStatus === 'loading'}<section
       class="card"
       aria-live="polite"
       aria-busy="true"
     >
       <p>Loading Fitness data…</p>
     </section>
-  {:else if controller.status === 'unavailable'}<section
+  {:else if appStatus === 'unavailable'}<section
       class="card error-panel"
       aria-labelledby="unavailable-title"
       role="alert"
     >
       <h2 id="unavailable-title">Fitness is unavailable</h2>
       <p>{controller.error}</p>
-      <button onclick={() => controller.load()}>Retry</button>
+      <button onclick={retryLoad}>Retry</button>
     </section>
   {:else}
     {#if controller.notice}<p class="status" role="status">
@@ -122,16 +157,12 @@
             <p class="eyebrow">YOUR PLAN</p>
             <h2 id="routine-list-title">Routines</h2>
           </div>
-          <button onclick={() => controller.openEditor('routine')}
-            >Create Routine</button
-          >
+          <button onclick={openRoutineEditor}>Create Routine</button>
         </div>
         {#if controller.document.routines.length === 0}<div class="empty">
             <h3>No routines yet</h3>
             <p>Create a routine to start training.</p>
-            <button onclick={() => controller.openEditor('routine')}
-              >Create Routine</button
-            >
+            <button onclick={openRoutineEditor}>Create Routine</button>
           </div>{:else}<div class="routine-grid">
             {#each controller.document.routines as routine (routine.id)}<button
                 class="routine-card"
@@ -160,7 +191,7 @@
                 {controller.routine.notes}
               </p>{/if}
           </div>
-          <button onclick={() => controller.openEditor('session')}
+          <button onclick={() => openEditor('session')}
             >Add Training Session</button
           >
         </div>
@@ -182,9 +213,8 @@
               <p class="muted">Session {controller.session.order}</p>
             </div>
             <div class="actions">
-              <button
-                class="quiet"
-                onclick={() => controller.openEditor('session')}>Rename</button
+              <button class="quiet" onclick={() => openEditor('session')}
+                >Rename</button
               ><button
                 class="danger quiet"
                 onclick={() => (confirmDelete = 'session')}>Delete</button
@@ -252,7 +282,7 @@
     {/if}
   {/if}
 
-  {#if controller.editor}<div
+  {#if editorKind}<div
       class="editor card"
       role="dialog"
       aria-modal="true"
@@ -260,9 +290,9 @@
     >
       <div class="section-heading">
         <h2 id="editor-title">
-          {controller.editor === 'routine'
+          {editorKind === 'routine'
             ? 'Create Routine'
-            : controller.editor === 'session'
+            : editorKind === 'session'
               ? controller.session
                 ? 'Rename Training Session'
                 : 'Add Training Session'
@@ -270,14 +300,12 @@
                 ? 'Edit Exercise'
                 : 'Add Exercise'}
         </h2>
-        <button class="quiet" onclick={() => controller.closeEditor()}
-          >Cancel</button
-        >
+        <button class="quiet" onclick={closeEditor}>Cancel</button>
       </div>
       {#if controller.error}<p class="field-error" role="alert">
           {controller.error}
         </p>{/if}
-      {#if controller.editor === 'routine'}<label
+      {#if editorKind === 'routine'}<label
           >Routine name<input
             bind:value={routineName}
             aria-invalid={!validName(routineName)}
@@ -286,9 +314,9 @@
           >Notes <span class="muted">(optional)</span><textarea
             bind:value={routineNotes}></textarea></label
         ><button disabled={!validName(routineName)} onclick={saveRoutine}
-          >Save Routine</button
+          >Save</button
         >
-      {:else if controller.editor === 'session'}<label
+      {:else if editorKind === 'session'}<label
           >Training session name<input
             bind:value={sessionName}
             aria-invalid={!validName(sessionName)}
@@ -299,12 +327,13 @@
             ? async () => {
                 try {
                   await controller.renameSelectedSession(sessionName);
+                  editorKind = null;
                   sessionName = '';
                 } catch {
                   void 0;
                 }
               }
-            : saveSession}>Save Session</button
+            : saveSession}>Save</button
         >
       {:else}<label for="exercise-name"
           >Exercise name<input
@@ -338,7 +367,7 @@
             bind:value={weightKg}
           /></label
         ><button disabled={!validName(exerciseName)} onclick={saveExercise}
-          >Save Exercise</button
+          >Save</button
         >{/if}
     </div>{/if}
   {#if confirmDelete === 'session'}<div class="confirm card" role="alertdialog">

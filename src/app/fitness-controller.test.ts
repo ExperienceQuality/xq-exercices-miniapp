@@ -204,4 +204,16 @@ describe('FitnessController', () => {
     expect(deps.repository.commit).toHaveBeenCalledOnce();
     expect(controller.routine?.name).toBe('First');
   });
+
+  it('notifies subscribers when load completes and supports unsubscribe', async () => {
+    const controller = new FitnessController(dependencies());
+    const listener = vi.fn();
+    const unsubscribe = controller.subscribe(listener);
+    await controller.load();
+    expect(controller.status).toBe('ready');
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    await controller.load();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
 });
