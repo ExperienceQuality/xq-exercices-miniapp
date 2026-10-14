@@ -7,6 +7,7 @@
   import { createIndexedDbFitnessRepository } from '../fitness/persistence/indexeddb-fitness-repository';
   import { FitnessController, type EditorKind } from './fitness-controller';
   import type { ExerciseInput } from '../fitness/domain/commands';
+  import type { RoutineV2, TrainingSessionV2 } from '../fitness/domain/model';
   import '../styles/app.css';
 
   const dependencies: FitnessDependencies = {
@@ -20,9 +21,13 @@
   // Keep the shell gated until the first load has published a usable state.
   let appStatus: 'loading' | 'ready' | 'unavailable' = 'loading';
   let renderVersion = 0;
+  let routine: RoutineV2 | undefined;
+  let session: TrainingSessionV2 | undefined;
   const unsubscribe = controller.subscribe(() => {
     renderVersion += 1;
     appStatus = controller.status;
+    routine = controller.routine;
+    session = controller.session;
   });
   onDestroy(unsubscribe);
   let editorKind: EditorKind = null;
@@ -150,7 +155,7 @@
     {#if controller.notice}<p class="status" role="status">
         {controller.notice}
       </p>{/if}
-    {#if !controller.routine}
+    {#if !routine}
       <section class="card" aria-labelledby="routine-list-title">
         <div class="section-heading">
           <div>
@@ -186,31 +191,31 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">ROUTINE</p>
-            <h2>{controller.routine.name}</h2>
-            {#if controller.routine.notes}<p class="muted">
-                {controller.routine.notes}
+            <h2>{routine.name}</h2>
+            {#if routine.notes}<p class="muted">
+                {routine.notes}
               </p>{/if}
           </div>
           <button onclick={() => openEditor('session')}
             >Add Training Session</button
           >
         </div>
-        {#if controller.routine.sessions.length === 0}<div class="empty">
+        {#if routine.sessions.length === 0}<div class="empty">
             <h3>No training sessions</h3>
             <p>Add a session, then add exercises.</p>
           </div>{:else}<div class="session-tabs" role="tablist">
-            {#each [...controller.routine.sessions].sort((a, b) => a.order - b.order) as session (session.id)}<button
+            {#each [...routine.sessions].sort((a, b) => a.order - b.order) as item (item.id)}<button
                 role="tab"
-                aria-selected={controller.session?.id === session.id}
-                class:active={controller.session?.id === session.id}
-                onclick={() => controller.selectSession(session.id)}
-                >{session.name}</button
+                aria-selected={session?.id === item.id}
+                class:active={session?.id === item.id}
+                onclick={() => controller.selectSession(item.id)}
+                >{item.name}</button
               >{/each}
           </div>{/if}
-        {#if controller.session}<div class="session-head">
+        {#if session}<div class="session-head">
             <div>
-              <h3>{controller.session.name}</h3>
-              <p class="muted">Session {controller.session.order}</p>
+              <h3>{session.name}</h3>
+              <p class="muted">Session {session.order}</p>
             </div>
             <div class="actions">
               <button class="quiet" onclick={() => openEditor('session')}
@@ -221,13 +226,11 @@
               >
             </div>
           </div>
-          {#if controller.session.exercises.length === 0}<div
-              class="empty compact"
-            >
+          {#if session.exercises.length === 0}<div class="empty compact">
               <p>No exercises yet.</p>
               <button onclick={() => startExercise()}>Add Exercise</button>
             </div>{:else}<div class="exercise-list">
-              {#each controller.session.exercises as exercise (exercise.id)}<article
+              {#each session.exercises as exercise (exercise.id)}<article
                   class="exercise"
                 >
                   <div>
@@ -261,14 +264,14 @@
             </div>
             <button class="secondary" onclick={() => controller.snapshot()}
               >Capture Progress</button
-            >{#if controller.routine.snapshots.at(-1)?.entries.length === 0 && controller.routine.snapshots.length > 0}<p
+            >{#if routine.snapshots.at(-1)?.entries.length === 0 && routine.snapshots.length > 0}<p
                 class="empty-report"
               >
                 No Exercises Captured<br /><span
                   >Add exercises before your next snapshot.</span
                 >
-              </p>{:else if controller.routine.snapshots.at(-1)}<ul>
-                {#each controller.routine.snapshots.at(-1)!.entries as entry (entry.foldedName)}<li
+              </p>{:else if routine.snapshots.at(-1)}<ul>
+                {#each routine.snapshots.at(-1)!.entries as entry (entry.foldedName)}<li
                   >
                     <strong>{entry.name}</strong><span
                       >{entry.repetitions} reps ({entry.repetitionsProgress}) · {entry.weightKg}
