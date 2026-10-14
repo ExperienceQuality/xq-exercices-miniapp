@@ -35,16 +35,26 @@ const runtimes = JSON.parse(
 ).runtimes;
 const pinnedRuntimeVersion = '18.2';
 const pinnedDeviceType = 'iPhone 16';
-const runtime = runtimes.find(
-  (item) =>
-    item.isAvailable &&
-    item.platform === 'iOS' &&
-    item.version === pinnedRuntimeVersion,
-);
+const runtime =
+  runtimes.find(
+    (item) =>
+      item.isAvailable &&
+      item.platform === 'iOS' &&
+      item.version === pinnedRuntimeVersion,
+  ) ??
+  runtimes
+    .filter((item) => item.isAvailable && item.platform === 'iOS')
+    .sort((left, right) =>
+      right.version.localeCompare(left.version, undefined, { numeric: true }),
+    )[0];
 
 if (!runtime)
   throw new Error(
-    `The pinned iOS ${pinnedRuntimeVersion} Simulator runtime is unavailable.`,
+    `No available iOS Simulator runtime was found (preferred ${pinnedRuntimeVersion}).`,
+  );
+if (runtime.version !== pinnedRuntimeVersion)
+  console.warn(
+    `Preferred iOS ${pinnedRuntimeVersion} runtime unavailable; using iOS ${runtime.version}.`,
   );
 
 const deviceTypes = JSON.parse(
