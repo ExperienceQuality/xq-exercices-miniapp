@@ -32,7 +32,7 @@ button {
   border: 0;
   border-radius: 12px;
   padding: 0.65rem 1rem;
-  background: #007aff;
+  background: #005bb5;
   color: #fff;
   font-weight: 650;
   cursor: pointer;
@@ -123,7 +123,7 @@ h2 {
 }
 .import {
   position: relative;
-  color: #007aff;
+  color: #005bb5;
   font-weight: 650;
 }
 .import input {
@@ -145,7 +145,7 @@ h2 {
   white-space: nowrap;
 }
 .session-tabs button.active {
-  background: #007aff;
+  background: #005bb5;
   color: #fff;
 }
 .session-head {
@@ -159,7 +159,7 @@ h2 {
 }
 .quiet {
   background: transparent;
-  color: #007aff;
+  color: #005bb5;
   padding: 0.45rem;
 }
 .danger {
@@ -171,7 +171,7 @@ h2 {
 }
 .secondary {
   background: #e5e5ea;
-  color: #007aff;
+  color: #005bb5;
   margin-top: 1rem;
 }
 .exercise {
@@ -255,7 +255,7 @@ h2 {
 }
 .back {
   background: transparent;
-  color: #007aff;
+  color: #005bb5;
   padding: 0;
   margin-bottom: 1rem;
 }

@@ -19,13 +19,15 @@
   const controller = new FitnessController(dependencies);
   const initialLoad = controller.load();
   // Keep the shell gated until the first load has published a usable state.
-  let appStatus: 'loading' | 'ready' | 'unavailable' = 'loading';
+  let appStatus: 'loading' | 'ready' | 'unavailable' = 'ready';
+  let dataReady = false;
   let renderVersion = 0;
   let routine: RoutineV2 | undefined;
   let session: TrainingSessionV2 | undefined;
   const unsubscribe = controller.subscribe(() => {
     renderVersion += 1;
     appStatus = controller.status;
+    dataReady = controller.status === 'ready';
     routine = controller.routine;
     session = controller.session;
   });
@@ -42,10 +44,12 @@
   onMount(async () => {
     await initialLoad;
     appStatus = controller.status;
+    dataReady = controller.status === 'ready';
   });
   const retryLoad = async () => {
     await controller.load();
     appStatus = controller.status;
+    dataReady = controller.status === 'ready';
   };
   const openRoutineEditor = () => {
     editorKind = 'routine';
@@ -162,12 +166,16 @@
             <p class="eyebrow">YOUR PLAN</p>
             <h2 id="routine-list-title">Routines</h2>
           </div>
-          <button onclick={openRoutineEditor}>Create Routine</button>
+          <button disabled={!dataReady} onclick={openRoutineEditor}
+            >Create Routine</button
+          >
         </div>
         {#if controller.document.routines.length === 0}<div class="empty">
             <h3>No routines yet</h3>
             <p>Create a routine to start training.</p>
-            <button onclick={openRoutineEditor}>Create Routine</button>
+            <button disabled={!dataReady} onclick={openRoutineEditor}
+              >Create Routine</button
+            >
           </div>{:else}<div class="routine-grid">
             {#each controller.document.routines as routine (routine.id)}<button
                 class="routine-card"
