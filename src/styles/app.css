@@ -163,10 +163,10 @@ h2 {
   padding: 0.45rem;
 }
 .danger {
-  color: #ff3b30;
+  color: #c62828;
 }
 .danger:not(.quiet) {
-  background: #ff3b30;
+  background: #c62828;
   color: #fff;
 }
 .secondary {
