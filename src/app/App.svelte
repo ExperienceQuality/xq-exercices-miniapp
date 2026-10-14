@@ -17,14 +17,14 @@
   };
   const controller = new FitnessController(dependencies);
   const initialLoad = controller.load();
+  // Keep the shell gated until the first load has published a usable state.
+  let appStatus: 'loading' | 'ready' | 'unavailable' = 'loading';
   let renderVersion = 0;
   const unsubscribe = controller.subscribe(() => {
     renderVersion += 1;
+    appStatus = controller.status;
   });
   onDestroy(unsubscribe);
-  // Render the local empty shell immediately; load success/error then replaces it
-  // without leaving the browser waiting on IndexedDB before controls appear.
-  let appStatus: 'loading' | 'ready' | 'unavailable' = 'ready';
   let editorKind: EditorKind = null;
   let routineName = '',
     routineNotes = '',
