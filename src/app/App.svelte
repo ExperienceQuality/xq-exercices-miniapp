@@ -320,7 +320,7 @@
           >Save</button
         >
       {:else if editorKind === 'session'}<label
-          >Training session name<input
+          >Session name<input
             bind:value={sessionName}
             aria-invalid={!validName(sessionName)}
           /></label
