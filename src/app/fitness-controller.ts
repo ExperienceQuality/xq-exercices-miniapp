@@ -28,6 +28,7 @@ export class FitnessController {
   editor: EditorKind = null;
   editingExerciseId: string | null = null;
   private busy = false;
+  private mutationChain: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
   private loadCompletion?: Promise<void>;
 
@@ -69,6 +70,15 @@ export class FitnessController {
     if (this.status === 'unavailable') {
       throw new FitnessError('storage-unavailable', this.error);
     }
+  }
+
+  private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.mutationChain.then(operation, operation);
+    this.mutationChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
   }
 
   get routine(): RoutineV2 | undefined {
@@ -136,30 +146,35 @@ export class FitnessController {
   }
 
   async saveRoutine(name: string, notes: string) {
-    await this.waitForLoad();
-    const candidate = createRoutine(
-      this.document,
-      { name, notes },
-      this.deps.ids,
-    );
-    await this.commit(candidate);
-    this.selectRoutine(candidate.routines.at(-1)!.id);
-    this.closeEditor();
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      const candidate = createRoutine(
+        this.document,
+        { name, notes },
+        this.deps.ids,
+      );
+      await this.commit(candidate);
+      this.selectRoutine(candidate.routines.at(-1)!.id);
+      this.closeEditor();
+    });
   }
   async saveSession(name: string) {
-    await this.waitForLoad();
-    if (!this.routine) throw missing('routine');
-    const candidate = addSession(
-      this.document,
-      this.routine.id,
-      name,
-      this.deps.ids,
-    );
-    await this.commit(candidate);
-    this.selectedSessionId =
-      candidate.routines.find((r) => r.id === this.routine?.id)?.sessions.at(-1)
-        ?.id ?? null;
-    this.closeEditor();
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      if (!this.routine) throw missing('routine');
+      const candidate = addSession(
+        this.document,
+        this.routine.id,
+        name,
+        this.deps.ids,
+      );
+      await this.commit(candidate);
+      this.selectedSessionId =
+        candidate.routines
+          .find((r) => r.id === this.routine?.id)
+          ?.sessions.at(-1)?.id ?? null;
+      this.closeEditor();
+    });
   }
   async renameSelectedSession(name: string) {
     await this.waitForLoad();

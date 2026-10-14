@@ -185,7 +185,7 @@ describe('FitnessController', () => {
     expect(attempts).toBe(2);
   });
 
-  it('serializes concurrent mutations through the busy guard', async () => {
+  it('serializes concurrent mutations through the mutation queue', async () => {
     const deps = dependencies();
     let release!: () => void;
     const pending = new Promise<void>((resolve) => {
@@ -201,8 +201,8 @@ describe('FitnessController', () => {
     const second = controller.saveRoutine('Second', '');
     release();
     await Promise.all([first, second]);
-    expect(deps.repository.commit).toHaveBeenCalledOnce();
-    expect(controller.routine?.name).toBe('First');
+    expect(deps.repository.commit).toHaveBeenCalledTimes(2);
+    expect(controller.routine?.name).toBe('Second');
   });
 
   it('notifies subscribers when load completes and supports unsubscribe', async () => {
