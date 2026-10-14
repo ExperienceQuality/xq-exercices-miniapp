@@ -19,6 +19,36 @@ function chromeCapability(name, windowSize, mobileEmulation) {
   };
 }
 
+async function executeChromeCdp(domain, command, params = {}) {
+  const hostname = this.options.hostname ?? '127.0.0.1';
+  const port = this.options.port;
+  const path = this.options.path ?? '/';
+
+  if (!port || !this.sessionId) {
+    throw new Error('ChromeDriver session details are unavailable.');
+  }
+
+  const endpoint = new URL(
+    `session/${this.sessionId}/goog/cdp/execute`,
+    `http://${hostname}:${port}${path}`,
+  );
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ cmd: `${domain}.${command}`, params }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok || payload.value?.error) {
+    throw new Error(
+      payload.value?.message ??
+        `ChromeDriver CDP command failed with HTTP ${response.status}.`,
+    );
+  }
+
+  return payload.value;
+}
+
 export const config = {
   runner: 'local',
   framework: 'mocha',
@@ -30,6 +60,9 @@ export const config = {
   connectionRetryTimeout: 120_000,
   connectionRetryCount: 1,
   mochaOpts: { timeout: 60_000 },
+  before: (_capabilities, _specs, browser) => {
+    browser.addCommand('cdp', executeChromeCdp);
+  },
   capabilities: [
     chromeCapability('chrome-desktop', '1440,900'),
     chromeCapability('chrome-mobile-390', undefined, {
