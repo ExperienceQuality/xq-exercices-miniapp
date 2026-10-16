@@ -7,7 +7,6 @@ Fitness-only, client-rendered Svelte single-page application. It is built with V
 - Node.js 24 LTS (`24.20.0` used by the initial lockfile), npm 11.19.0
 - Svelte 5.57.2, Vite 8.3.4, TypeScript 6.0.3, Vitest 4.1.1
 - WebdriverIO 9.31.1 with Chrome/ChromeDriver 155.0.8059.40 managed by WebdriverIO
-- Appium 3.2.0 with XCUITest driver 12.18.0, Xcode 16.2, iOS 18.2, and an iPhone 16 Simulator
 
 Install the Node major declared in `.nvmrc`, then run:
 
@@ -20,7 +19,7 @@ npm run test:unit
 npm run build
 ```
 
-`npm run test:browser` runs the authoritative acceptance suite against desktop Chrome and 390 x 844 and 320 x 568 touch-emulation profiles. `npm run test:ios-smoke` is deliberately narrower: it creates one isolated iPhone 16 / iOS 18.2 Simulator, runs only the four approved Safari smoke assertions, and removes only that owned Simulator afterward. Physical-device validation is outside scope.
+`npm run test:browser` runs the authoritative acceptance suite against desktop Chrome and 390 x 844 and 320 x 568 touch-emulation profiles. Physical-device and iOS Simulator validation are outside scope; the earlier Appium/XCUITest smoke lane has been removed from the test strategy.
 
 The browser suites are populated by the separate SDET assignment; they are intentionally absent in this foundation commit.
 
