@@ -37,20 +37,43 @@ export async function startFreshApp(scenario) {
   return runId;
 }
 
+async function retryWithTimeout(operation, timeoutMsg, timeout = 10_000) {
+  return browser.waitUntil(
+    async () => {
+      try {
+        return await operation();
+      } catch {
+        return false;
+      }
+    },
+    { timeout, interval: 50, timeoutMsg },
+  );
+}
+
 export async function control(name) {
-  const element = await $(`aria/${name}`);
-  await element.waitForExist();
-  return element;
+  return retryWithTimeout(async () => {
+    const element = await $(`aria/${name}`);
+    const exists = await element.isExisting();
+    return exists ? element : false;
+  }, `Control ${name} did not appear.`);
 }
 
 export async function click(name) {
-  const element = await control(name);
-  await element.waitForClickable();
-  await element.click();
+  await retryWithTimeout(async () => {
+    const element = await control(name);
+    const clickable = await element.isClickable();
+    if (!clickable) return false;
+    await element.click();
+    return true;
+  }, `${name} could not be clicked.`);
 }
 
 export async function fill(name, value) {
-  const element = await control(name);
+  const element = await retryWithTimeout(async () => {
+    const el = await $(`aria/${name}`);
+    const exists = await el.isExisting();
+    return exists ? el : false;
+  }, `Field ${name} did not appear for filling.`);
   await element.setValue(String(value));
 }
 
@@ -63,7 +86,10 @@ export async function waitForSettled(predicate, timeoutMsg) {
 }
 
 export async function bodyText() {
-  return (await $('body').getText()).replace(/\s+/g, ' ').trim();
+  return retryWithTimeout(
+    async () => (await $('body').getText()).replace(/\s+/g, ' ').trim(),
+    'Body text could not be read.',
+  );
 }
 
 export async function expectText(text) {
