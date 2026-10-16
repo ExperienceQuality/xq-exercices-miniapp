@@ -8,6 +8,7 @@ import {
   addSession,
   bodyText,
   click,
+  control,
   createRoutine,
   expectNoText,
   expectText,
@@ -16,6 +17,7 @@ import {
   readFixture,
   seedRecords,
   startFreshApp,
+  waitForSettled,
 } from './support/app.js';
 
 describe('Progress snapshot acceptance', () => {
@@ -79,6 +81,10 @@ describe('Progress snapshot acceptance', () => {
     });
     await click('Back');
     await click('Capture Progress');
+    await waitForSettled(
+      async () => (await bodyText()).includes('reps'),
+      'Progress snapshot did not render aggregated entries.',
+    );
     const text = await bodyText();
     assert.equal((text.match(/Bench Press/gi) ?? []).length, 1);
     assert.ok(text.indexOf('Alpha Lift') < text.indexOf('Bench Press'));
@@ -110,6 +116,10 @@ describe('Progress snapshot acceptance', () => {
     await click('Capture Progress');
     await click('Capture Progress');
     await click('Capture Progress');
+    await waitForSettled(
+      async () => (await bodyText()).includes('reps'),
+      'Progress snapshots did not render aggregated entries.',
+    );
     const text = await bodyText();
     assert.ok((text.match(/snapshot/gi) ?? []).length >= 2);
     assert.ok((text.match(/snapshot/gi) ?? []).length < 4);
@@ -120,6 +130,7 @@ describe('Progress snapshot acceptance', () => {
     await importFixture('valid-v2.json');
     await click('Power Base');
     await browser.refresh();
+    await click('Power Base');
     await expectText('Increased');
     await expectText('Decreased');
     await expectText('Same');
@@ -214,12 +225,11 @@ describe('Persistence and recovery acceptance', () => {
     await fill('Routine name', 'Must Not Publish');
     await click('Save');
     await expectText('could not be saved');
-    assert.equal(
-      (await bodyText()).includes('Must Not Publish') &&
-        !original.includes('Must Not Publish'),
-      true,
-    );
+    const routineName = await control('Routine name');
+    assert.equal(await routineName.getValue(), 'Must Not Publish');
+    assert.equal(original.includes('Must Not Publish'), false);
     await click('Cancel');
+    await routineName.waitForExist({ reverse: true });
     await expectNoText('Must Not Publish');
   });
 

@@ -27,7 +27,6 @@ export class FitnessController {
   selectedSessionId: string | null = null;
   editor: EditorKind = null;
   editingExerciseId: string | null = null;
-  private busy = false;
   private mutationChain: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
   private loadCompletion?: Promise<void>;
@@ -102,6 +101,10 @@ export class FitnessController {
     this.selectedSessionId = id;
     this.notify();
   }
+  deselectSession() {
+    this.selectedSessionId = null;
+    this.notify();
+  }
   backToList() {
     this.selectedRoutineId = null;
     this.selectedSessionId = null;
@@ -125,8 +128,6 @@ export class FitnessController {
   }
 
   private async commit(candidate: FitnessDocumentV2) {
-    if (this.busy) return;
-    this.busy = true;
     this.error = '';
     try {
       const result = await this.deps.repository.commit(
@@ -140,8 +141,6 @@ export class FitnessController {
       this.error = safeError(error);
       this.notify();
       throw error;
-    } finally {
-      this.busy = false;
     }
   }
 
@@ -177,86 +176,98 @@ export class FitnessController {
     });
   }
   async renameSelectedSession(name: string) {
-    await this.waitForLoad();
-    if (!this.routine || !this.session) throw missing('session');
-    await this.commit(
-      renameSession(this.document, this.routine.id, this.session.id, name),
-    );
-    this.closeEditor();
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      if (!this.routine || !this.session) throw missing('session');
+      await this.commit(
+        renameSession(this.document, this.routine.id, this.session.id, name),
+      );
+      this.closeEditor();
+    });
   }
   async removeSession() {
-    await this.waitForLoad();
-    if (!this.routine || !this.session) throw missing('session');
-    await this.commit(
-      deleteSession(this.document, this.routine.id, this.session.id),
-    );
-    this.selectedSessionId = null;
-    this.notify();
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      if (!this.routine || !this.session) throw missing('session');
+      await this.commit(
+        deleteSession(this.document, this.routine.id, this.session.id),
+      );
+      this.selectedSessionId = null;
+      this.notify();
+    });
   }
   async saveExercise(input: ExerciseInput) {
-    await this.waitForLoad();
-    if (!this.routine || !this.session) throw missing('session');
-    const candidate = this.editingExerciseId
-      ? editExercise(
-          this.document,
-          this.routine.id,
-          this.session.id,
-          this.editingExerciseId,
-          input,
-        )
-      : addExercise(
-          this.document,
-          this.routine.id,
-          this.session.id,
-          input,
-          this.deps.ids,
-        );
-    await this.commit(candidate);
-    this.closeEditor();
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      if (!this.routine || !this.session) throw missing('session');
+      const candidate = this.editingExerciseId
+        ? editExercise(
+            this.document,
+            this.routine.id,
+            this.session.id,
+            this.editingExerciseId,
+            input,
+          )
+        : addExercise(
+            this.document,
+            this.routine.id,
+            this.session.id,
+            input,
+            this.deps.ids,
+          );
+      await this.commit(candidate);
+      this.closeEditor();
+    });
   }
   async removeExercise(id: string) {
-    await this.waitForLoad();
-    if (!this.routine || !this.session) throw missing('session');
-    await this.commit(
-      deleteExercise(this.document, this.routine.id, this.session.id, id),
-    );
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      if (!this.routine || !this.session) throw missing('session');
+      await this.commit(
+        deleteExercise(this.document, this.routine.id, this.session.id, id),
+      );
+    });
   }
   async snapshot() {
-    await this.waitForLoad();
-    if (!this.routine) throw missing('routine');
-    await this.commit(
-      captureSnapshot(
-        this.document,
-        this.routine.id,
-        this.deps.ids,
-        this.deps.clock,
-      ),
-    );
-    this.notice = 'Progress snapshot captured.';
-    this.notify();
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      if (!this.routine) throw missing('routine');
+      await this.commit(
+        captureSnapshot(
+          this.document,
+          this.routine.id,
+          this.deps.ids,
+          this.deps.clock,
+        ),
+      );
+      this.notice = 'Progress snapshot captured.';
+      this.notify();
+    });
   }
   async importFile(file: File | undefined) {
     if (!file) return;
-    await this.waitForLoad();
-    this.notice = '';
-    try {
-      const result = await importFitnessDocument(
-        await this.deps.importFileReader.readText(file),
-        this.deps.ids,
-        this.revision,
-        (revision, candidate) =>
-          this.deps.repository.commit(revision, candidate),
-      );
-      this.document = result.document;
-      this.revision = result.storageRevision;
-      this.selectedRoutineId = null;
-      this.selectedSessionId = null;
-      this.notice = 'Fitness data imported.';
-      this.notify();
-    } catch (error) {
-      this.error = safeError(error);
-      this.notify();
-    }
+    return this.enqueueMutation(async () => {
+      await this.waitForLoad();
+      this.notice = '';
+      try {
+        const result = await importFitnessDocument(
+          await this.deps.importFileReader.readText(file),
+          this.deps.ids,
+          this.revision,
+          (revision, candidate) =>
+            this.deps.repository.commit(revision, candidate),
+        );
+        this.document = result.document;
+        this.revision = result.storageRevision;
+        this.selectedRoutineId = null;
+        this.selectedSessionId = null;
+        this.notice = 'Fitness data imported.';
+        this.notify();
+      } catch (error) {
+        this.error = safeError(error);
+        this.notify();
+      }
+    });
   }
 }
 

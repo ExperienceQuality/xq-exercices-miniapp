@@ -54,16 +54,34 @@ export async function fill(name, value) {
   await element.setValue(String(value));
 }
 
+export async function waitForSettled(predicate, timeoutMsg) {
+  await browser.waitUntil(predicate, {
+    timeout: 60_000,
+    interval: 50,
+    timeoutMsg,
+  });
+}
+
 export async function bodyText() {
   return (await $('body').getText()).replace(/\s+/g, ' ').trim();
 }
 
 export async function expectText(text) {
-  assert.match(await bodyText(), new RegExp(escapeRegExp(text), 'i'));
+  const pattern = new RegExp(escapeRegExp(text), 'i');
+  await waitForSettled(
+    async () => pattern.test(await bodyText()),
+    `Expected page text to include ${text}.`,
+  );
+  assert.match(await bodyText(), pattern);
 }
 
 export async function expectNoText(text) {
-  assert.doesNotMatch(await bodyText(), new RegExp(escapeRegExp(text), 'i'));
+  const pattern = new RegExp(escapeRegExp(text), 'i');
+  await waitForSettled(
+    async () => !pattern.test(await bodyText()),
+    `Expected page text not to include ${text}.`,
+  );
+  assert.doesNotMatch(await bodyText(), pattern);
 }
 
 export async function expectDisabled(name, disabled = true) {
@@ -75,12 +93,14 @@ export async function createRoutine(name, notes) {
   await fill('Routine name', name);
   if (notes !== undefined) await fill('Notes', notes);
   await click('Save');
+  await waitForEditorSave('Routine name', name);
 }
 
 export async function addSession(name) {
   await click('Add Training Session');
   await fill('Session name', name);
   await click('Save');
+  await waitForEditorSave('Session name', name);
 }
 
 export async function addExercise({
@@ -95,18 +115,19 @@ export async function addExercise({
   await fill('Repetitions', repetitions);
   await fill('Weight in kilograms', weightKg);
   await click('Save');
+  await waitForEditorSave('Exercise name', name);
 }
 
 export async function importFixture(name) {
   const input = await $('input[type="file"]');
   await input.waitForExist();
   await input.setValue(fixturePath(name));
-  if (name === 'valid-v1.json' || name === 'valid-v2.json') {
-    await browser.waitUntil(
-      async () => (await bodyText()).includes('Fitness data imported.'),
-      { timeoutMsg: `Import did not complete for ${name}.` },
+  await waitForSettled(async () => {
+    const text = (await bodyText()).toLowerCase();
+    return ['imported.', 'invalid', 'not supported', 'could not be saved'].some(
+      (message) => text.includes(message),
     );
-  }
+  }, `Import did not complete for ${name}.`);
 }
 
 export async function allInteractiveControls() {
@@ -141,11 +162,41 @@ export async function seedRecords({ primary, recovery }) {
     },
     { primary, recovery },
   );
+  await waitForSettled(
+    () =>
+      browser.executeAsync((done) => {
+        const request = indexedDB.open('xq-fitness');
+        request.onerror = () => done(false);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction('records', 'readonly');
+          transaction.objectStore('records').get('primary');
+          transaction.oncomplete = () => {
+            database.close();
+            done(true);
+          };
+          transaction.onerror = () => done(false);
+          transaction.onabort = () => done(false);
+        };
+      }),
+    'Seeded fitness records did not flush.',
+  );
 }
 
 export async function readFixture(name) {
   const { readFile } = await import('node:fs/promises');
   return JSON.parse(await readFile(fixturePath(name), 'utf8'));
+}
+
+async function waitForEditorSave(fieldName, savedName) {
+  const normalizedName = savedName.trim();
+  await waitForSettled(async () => {
+    const editor = await $(`aria/${fieldName}`);
+    return (
+      !(await editor.isExisting()) &&
+      (await bodyText()).includes(normalizedName)
+    );
+  }, `${fieldName} editor did not close after saving ${normalizedName}.`);
 }
 
 function escapeRegExp(value) {

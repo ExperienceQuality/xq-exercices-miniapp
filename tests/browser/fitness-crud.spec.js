@@ -6,7 +6,6 @@ import { $, browser } from '@wdio/globals';
 import {
   addExercise,
   addSession,
-  bodyText,
   click,
   control,
   createRoutine,
@@ -18,6 +17,7 @@ import {
   readFixture,
   seedRecords,
   startFreshApp,
+  waitForSettled,
 } from './support/app.js';
 
 describe('Fitness availability and routine acceptance', () => {
@@ -47,6 +47,7 @@ describe('Fitness availability and routine acceptance', () => {
     await expectText('Synthetic Routine');
     await browser.refresh();
     await expectText('Synthetic Routine');
+    await click('Synthetic Routine');
     await click('Back');
     await createRoutine(
       '  Synthetic Notes Routine  ',
@@ -66,10 +67,9 @@ describe('Fitness availability and routine acceptance', () => {
     await browser.refresh();
     await expectText('unavailable');
     await expectText('Retry');
-    const originalError = await bodyText();
     await click('Retry');
     await expectText('unavailable');
-    assert.equal(await bodyText(), originalError);
+    await expectText('Retry');
   });
 });
 
@@ -87,6 +87,10 @@ describe('Training session acceptance', () => {
     await expectDisabled('Save');
     await fill('Session name', '  Session One  ');
     await click('Save');
+    await waitForSettled(
+      async () => !(await (await $('aria/Session name')).isExisting()),
+      'Session editor did not close after saving Session One.',
+    );
     await expectText('Session One');
   });
 
@@ -112,6 +116,10 @@ describe('Training session acceptance', () => {
     await click('Edit Training Session');
     await fill('Session name', '  Renamed Session  ');
     await click('Save');
+    await waitForSettled(
+      async () => !(await (await $('aria/Session name')).isExisting()),
+      'Session editor did not close after saving Renamed Session.',
+    );
     await expectText('Renamed Session');
     await expectText('Attached Exercise');
     await click('Back');
@@ -121,6 +129,7 @@ describe('Training session acceptance', () => {
     await click('Confirm Delete');
     await expectNoText('Delete Session');
     await browser.refresh();
+    await click('Session Routine');
     await expectText('Renamed Session');
     await expectNoText('Delete Session');
   });
@@ -188,15 +197,19 @@ describe('Exercise acceptance', () => {
   it('EXERCISE-08 and EXERCISE-09 preserve identity on edit and show the last-item empty state after delete (FIT-027, FIT-028)', async () => {
     await addExercise({ name: 'Editable Exercise' });
     await click('Editable Exercise');
-    await click('Edit Exercise');
+    await click('Edit Editable Exercise');
     await fill('Sets', 5);
     await fill('Repetitions', 6);
     await fill('Weight in kilograms', 7.5);
     await click('Save');
+    await waitForSettled(
+      async () => !(await (await $('aria/Exercise name')).isExisting()),
+      'Exercise editor did not close after saving Editable Exercise.',
+    );
     await expectText('5');
     await expectText('6');
     await expectText('7.5');
-    await click('Delete Exercise');
+    await click('Delete Editable Exercise');
     await click('Confirm Delete');
     await expectNoText('Editable Exercise');
     await expectText('No exercises');

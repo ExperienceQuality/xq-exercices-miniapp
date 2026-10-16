@@ -7,7 +7,11 @@
   import { createIndexedDbFitnessRepository } from '../fitness/persistence/indexeddb-fitness-repository';
   import { FitnessController, type EditorKind } from './fitness-controller';
   import type { ExerciseInput } from '../fitness/domain/commands';
-  import type { RoutineV2, TrainingSessionV2 } from '../fitness/domain/model';
+  import type {
+    FitnessDocumentV2,
+    RoutineV2,
+    TrainingSessionV2,
+  } from '../fitness/domain/model';
   import '../styles/app.css';
 
   const dependencies: FitnessDependencies = {
@@ -21,26 +25,34 @@
   // Keep the shell gated until the first load has published a usable state.
   let appStatus: 'loading' | 'ready' | 'unavailable' = 'ready';
   let dataReady = false;
-  let renderVersion = 0;
   let routine: RoutineV2 | undefined;
   let session: TrainingSessionV2 | undefined;
+  let document: FitnessDocumentV2 = controller.document;
+  let notice: string | null = null;
+  let error: string | null = null;
+  let editingExerciseId: string | null = null;
   const unsubscribe = controller.subscribe(() => {
-    renderVersion += 1;
     appStatus = controller.status;
     dataReady = controller.status === 'ready';
     routine = controller.routine;
     session = controller.session;
+    document = controller.document;
+    notice = controller.notice;
+    error = controller.error;
+    editingExerciseId = controller.editingExerciseId;
   });
   onDestroy(unsubscribe);
   let editorKind: EditorKind = null;
+  let sessionEditorIntent: 'add' | 'rename' = 'add';
   let routineName = '',
     routineNotes = '',
     sessionName = '',
     exerciseName = '',
     sets = 3,
     repetitions = 10,
-    weightKg = 0,
-    confirmDelete = '';
+    weightKg = 0;
+  let confirmDelete:
+    { kind: 'session' } | { kind: 'exercise'; id: string } | null = null;
   onMount(async () => {
     await initialLoad;
     appStatus = controller.status;
@@ -54,17 +66,16 @@
   const openRoutineEditor = () => {
     editorKind = 'routine';
     controller.openEditor('routine');
-    renderVersion += 1;
   };
-  const openEditor = (kind: Exclude<EditorKind, null>) => {
-    editorKind = kind;
-    controller.openEditor(kind);
-    renderVersion += 1;
+  const openSessionEditor = (intent: 'add' | 'rename') => {
+    sessionEditorIntent = intent;
+    sessionName = intent === 'rename' ? (session?.name ?? '') : '';
+    editorKind = 'session';
+    controller.openEditor('session');
   };
   const closeEditor = () => {
     editorKind = null;
     controller.closeEditor();
-    renderVersion += 1;
   };
   const saveRoutine = async () => {
     try {
@@ -117,11 +128,18 @@
     }
   };
   const validName = (value: string) => value.trim().length > 0;
+  const validExercise = () =>
+    validName(exerciseName) &&
+    Number.isInteger(Number(sets)) &&
+    Number(sets) >= 1 &&
+    Number.isInteger(Number(repetitions)) &&
+    Number(repetitions) >= 1 &&
+    Number.isFinite(Number(weightKg)) &&
+    Number(weightKg) >= 0;
 </script>
 
 <svelte:head><title>XQ Fitness</title></svelte:head>
 <main class="shell" aria-labelledby="app-title">
-  <span class="sr-only" aria-hidden="true">{renderVersion}</span>
   <header class="topbar">
     <div>
       <p class="eyebrow">XQ FITNESS</p>
@@ -132,10 +150,11 @@
         type="file"
         accept="application/json,.json"
         aria-label="Import Fitness JSON"
-        onchange={(event) =>
-          controller.importFile(
-            (event.currentTarget as HTMLInputElement).files?.[0],
-          )}
+        onchange={(event) => {
+          void controller
+            .importFile((event.currentTarget as HTMLInputElement).files?.[0])
+            .catch(() => {});
+        }}
       /></label
     >
   </header>
@@ -152,12 +171,15 @@
       role="alert"
     >
       <h2 id="unavailable-title">Fitness is unavailable</h2>
-      <p>{controller.error}</p>
+      <p>{error}</p>
       <button onclick={retryLoad}>Retry</button>
     </section>
   {:else}
-    {#if controller.notice}<p class="status" role="status">
-        {controller.notice}
+    {#if notice}<p class="status" role="status">
+        {notice}
+      </p>{/if}
+    {#if error}<p class="status" role="alert">
+        {error}
       </p>{/if}
     {#if !routine}
       <section class="card" aria-labelledby="routine-list-title">
@@ -170,14 +192,14 @@
             >Create Routine</button
           >
         </div>
-        {#if controller.document.routines.length === 0}<div class="empty">
+        {#if document.routines.length === 0}<div class="empty">
             <h3>No routines yet</h3>
             <p>Create a routine to start training.</p>
             <button disabled={!dataReady} onclick={openRoutineEditor}
               >Create Routine</button
             >
           </div>{:else}<div class="routine-grid">
-            {#each controller.document.routines as routine (routine.id)}<button
+            {#each document.routines as routine (routine.id)}<button
                 class="routine-card"
                 onclick={() => controller.selectRoutine(routine.id)}
                 ><strong>{routine.name}</strong>{#if routine.notes}<span
@@ -193,8 +215,13 @@
       </section>
     {:else}
       <section class="card workspace">
-        <button class="back" onclick={() => controller.backToList()}
-          >← All routines</button
+        <button
+          class="back"
+          aria-label="Back"
+          onclick={() =>
+            controller.session
+              ? controller.deselectSession()
+              : controller.backToList()}>← All routines</button
         >
         <div class="section-heading">
           <div>
@@ -204,7 +231,7 @@
                 {routine.notes}
               </p>{/if}
           </div>
-          <button onclick={() => openEditor('session')}
+          <button onclick={() => openSessionEditor('add')}
             >Add Training Session</button
           >
         </div>
@@ -226,11 +253,15 @@
               <p class="muted">Session {session.order}</p>
             </div>
             <div class="actions">
-              <button class="quiet" onclick={() => openEditor('session')}
-                >Rename</button
+              <button
+                class="quiet"
+                aria-label="Edit Training Session"
+                onclick={() => openSessionEditor('rename')}>Rename</button
               ><button
                 class="danger quiet"
-                onclick={() => (confirmDelete = 'session')}>Delete</button
+                aria-label="Delete Training Session"
+                onclick={() => (confirmDelete = { kind: 'session' })}
+                >Delete</button
               >
             </div>
           </div>
@@ -256,8 +287,11 @@
                     ><button
                       class="danger quiet"
                       aria-label={`Delete ${exercise.name}`}
-                      onclick={() => controller.removeExercise(exercise.id)}
-                      >Delete</button
+                      onclick={() =>
+                        (confirmDelete = {
+                          kind: 'exercise',
+                          id: exercise.id,
+                        })}>Delete</button
                     >
                   </div>
                 </article>{/each}
@@ -265,30 +299,38 @@
             <button class="secondary" onclick={() => startExercise()}
               >Add Exercise</button
             >{/if}
-          <div class="progress">
-            <div>
-              <h3>Progress</h3>
-              <p class="muted">Compare your latest snapshots.</p>
-            </div>
-            <button class="secondary" onclick={() => controller.snapshot()}
-              >Capture Progress</button
-            >{#if routine.snapshots.at(-1)?.entries.length === 0 && routine.snapshots.length > 0}<p
-                class="empty-report"
-              >
-                No Exercises Captured<br /><span
-                  >Add exercises before your next snapshot.</span
-                >
-              </p>{:else if routine.snapshots.at(-1)}<ul>
-                {#each routine.snapshots.at(-1)!.entries as entry (entry.foldedName)}<li
-                  >
-                    <strong>{entry.name}</strong><span
-                      >{entry.repetitions} reps ({entry.repetitionsProgress}) · {entry.weightKg}
-                      kg ({entry.weightProgress})</span
-                    >
-                  </li>{/each}
-              </ul>{/if}
-          </div>
         {/if}
+        <div class="progress">
+          <div>
+            <h3>Progress</h3>
+            <p class="muted">Compare your latest snapshots.</p>
+          </div>
+          <button class="secondary" onclick={() => controller.snapshot()}
+            >Capture Progress</button
+          >{#if routine.snapshots.at(-1)?.entries.length === 0 && routine.snapshots.length > 0}<p
+              class="empty-report"
+            >
+              No Exercises Captured<br /><span
+                >Add exercises before your next snapshot.</span
+              >
+            </p>{:else if routine.snapshots.at(-1)}<ul>
+              {#each routine.snapshots.at(-1)!.entries as entry (entry.foldedName)}<li
+                >
+                  <strong>{entry.name}</strong><span
+                    >{entry.sets} sets · {entry.repetitions} reps{entry.repetitionsProgress ===
+                    'first'
+                      ? ''
+                      : ` (${entry.repetitionsProgress})`} · {entry.weightKg}
+                    kg{entry.weightProgress === 'first'
+                      ? ''
+                      : ` (${entry.weightProgress})`}{entry.repetitionsProgress ===
+                      'first' || entry.weightProgress === 'first'
+                      ? ' · First snapshot'
+                      : ''}</span
+                  >
+                </li>{/each}
+            </ul>{/if}
+        </div>
       </section>
     {/if}
   {/if}
@@ -304,17 +346,17 @@
           {editorKind === 'routine'
             ? 'Create Routine'
             : editorKind === 'session'
-              ? controller.session
+              ? sessionEditorIntent === 'rename'
                 ? 'Rename Training Session'
                 : 'Add Training Session'
-              : controller.editingExerciseId
+              : editingExerciseId
                 ? 'Edit Exercise'
                 : 'Add Exercise'}
         </h2>
         <button class="quiet" onclick={closeEditor}>Cancel</button>
       </div>
-      {#if controller.error}<p class="field-error" role="alert">
-          {controller.error}
+      {#if error}<p class="field-error" role="alert">
+          {error}
         </p>{/if}
       {#if editorKind === 'routine'}<label
           >Routine name<input
@@ -334,7 +376,7 @@
           /></label
         ><button
           disabled={!validName(sessionName)}
-          onclick={controller.session
+          onclick={sessionEditorIntent === 'rename'
             ? async () => {
                 try {
                   await controller.renameSelectedSession(sessionName);
@@ -377,20 +419,45 @@
             inputmode="decimal"
             bind:value={weightKg}
           /></label
-        ><button disabled={!validName(exerciseName)} onclick={saveExercise}
-          >Save</button
+        ><button disabled={!validExercise()} onclick={saveExercise}>Save</button
         >{/if}
     </div>{/if}
-  {#if confirmDelete === 'session'}<div class="confirm card" role="alertdialog">
-      <h2>Delete session?</h2>
-      <p>This removes the session and its exercises.</p>
+  {#if confirmDelete}<div
+      class="confirm card"
+      role="alertdialog"
+      aria-modal="true"
+    >
+      <h2>
+        {confirmDelete.kind === 'session'
+          ? 'Delete session?'
+          : 'Delete exercise?'}
+      </h2>
+      <p>
+        {confirmDelete.kind === 'session'
+          ? 'This removes the session and its exercises.'
+          : 'This removes the exercise.'}
+      </p>
       <button
         class="danger"
+        aria-label="Confirm Delete"
         onclick={async () => {
-          await controller.removeSession();
-          confirmDelete = '';
-        }}>Delete Session</button
-      ><button class="quiet" onclick={() => (confirmDelete = '')}>Cancel</button
+          const target = confirmDelete;
+          confirmDelete = null;
+          try {
+            if (target?.kind === 'session') {
+              await controller.removeSession();
+            } else if (target?.kind === 'exercise') {
+              await controller.removeExercise(target.id);
+            }
+          } catch {
+            void 0;
+          }
+        }}
+        >{confirmDelete.kind === 'session'
+          ? 'Delete Session'
+          : 'Delete Exercise'}</button
+      ><button class="quiet" onclick={() => (confirmDelete = null)}
+        >Cancel</button
       >
     </div>{/if}
 </main>
