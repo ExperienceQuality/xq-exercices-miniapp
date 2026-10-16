@@ -139,7 +139,7 @@
 </script>
 
 <svelte:head><title>XQ Fitness</title></svelte:head>
-<main class="shell" aria-labelledby="app-title">
+<main class="shell" aria-labelledby="app-title" data-ready={dataReady}>
   <header class="topbar">
     <div>
       <p class="eyebrow">XQ FITNESS</p>

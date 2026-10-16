@@ -34,6 +34,10 @@ export async function startFreshApp(scenario) {
     window.name = id;
   }, runId);
   await browser.url('./');
+  await waitForSettled(
+    async () => (await $('[data-ready="true"]')).isExisting(),
+    'App did not finish loading.',
+  );
   return runId;
 }
 
@@ -69,6 +73,10 @@ export async function click(name) {
 }
 
 export async function fill(name, value) {
+  await waitForSettled(async () => {
+    const text = (await bodyText()).toLowerCase();
+    return text.includes(name.toLowerCase());
+  }, `Field label ${name} did not appear before filling.`);
   const element = await retryWithTimeout(async () => {
     const el = await $(`aria/${name}`);
     const exists = await el.isExisting();
