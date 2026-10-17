@@ -14,4 +14,4 @@ services:
         value: '/'
       - key: APP_PASSWORD
         sync: false
-    healthCheckPath: /
+    healthCheckPath: /health
