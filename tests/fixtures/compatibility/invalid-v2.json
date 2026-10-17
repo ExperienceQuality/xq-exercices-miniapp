@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "routines": [
+    {
+      "id": "duplicate-id",
+      "name": "Invalid Synthetic Routine",
+      "sessions": [
+        {
+          "id": "duplicate-id",
+          "name": "Invalid Session",
+          "order": 1,
+          "exercises": [
+            {
+              "id": "invalid-exercise",
+              "name": "Invalid Exercise",
+              "sets": 0,
+              "repetitions": 1.5,
+              "weightKg": -1
+            }
+          ]
+        }
+      ],
+      "snapshots": []
+    }
+  ]
+}

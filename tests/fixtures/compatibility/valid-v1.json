@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "routines": [
+    {
+      "name": "  Legacy Strength  ",
+      "notes": "   ",
+      "sessions": [
+        {
+          "name": "  First Session  ",
+          "exercises": [
+            {
+              "name": " Bench Press ",
+              "sets": 3,
+              "repetitions": 8,
+              "weightKg": 40
+            }
+          ]
+        },
+        {
+          "id": "legacy-session-ordered",
+          "name": "Second Session",
+          "order": 7,
+          "exercises": [
+            {
+              "id": "legacy-exercise-bench",
+              "name": "bench press",
+              "sets": 5,
+              "repetitions": 6,
+              "weightKg": 45
+            }
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "capturedAt": "2025-12-01T10:00:00.000Z",
+          "entries": [
+            {
+              "name": " Bench Press ",
+              "sets": 3,
+              "repetitions": 8,
+              "weightKg": 40
+            },
+            {
+              "name": "bench press",
+              "sets": 4,
+              "repetitions": 7,
+              "weightKg": 42.5
+            }
+          ]
+        },
+        {
+          "id": "legacy-snapshot-middle",
+          "capturedAt": "2025-12-08T10:00:00.000Z",
+          "entries": [
+            {
+              "name": "Bench Press",
+              "sets": 4,
+              "repetitions": 9,
+              "weightKg": 42.5
+            }
+          ]
+        },
+        {
+          "capturedAt": "2025-12-15T10:00:00.000Z",
+          "entries": [
+            {
+              "name": "Bench Press",
+              "sets": 5,
+              "repetitions": 10,
+              "weightKg": 45
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: xq-exercises
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm ci && VITE_BASE=/ npm run build
+    startCommand: node server.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: VITE_BASE
+        value: '/'
+      - key: APP_PASSWORD
+        sync: false
+    healthCheckPath: /
