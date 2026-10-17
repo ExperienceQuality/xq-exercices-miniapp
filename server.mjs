@@ -14,6 +14,11 @@ if (!password) {
   );
 }
 
+// Health check must be unauthenticated so Render can verify the service.
+app.get('/health', (_req, res) => {
+  res.status(200).send('ok');
+});
+
 app.use(
   basicAuth({
     users: { owner: password },
