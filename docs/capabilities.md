@@ -40,6 +40,9 @@ dependency.
   maxima. Entries are sorted by folded name.
 - Each entry classifies repetitions and weight independently against
   the previous snapshot: `first`, `increased`, `decreased`, or `same`.
+  Non-first classes render as colored arrow markers — up (green) for
+  `increased`, down (red) for `decreased`, flat (grey) for `same` —
+  with accessible labels preserving the class name.
 - Only the two most recent snapshots are retained per routine.
 - An empty snapshot shows guidance ("Add exercises before your next
   snapshot.").
