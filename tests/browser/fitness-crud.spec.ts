@@ -235,6 +235,16 @@ test.describe('Exercise acceptance', () => {
     await app.expectNoText('Invalid Metrics');
   });
 
+  test('EXERCISE-11 accepts a decimal weight typed key by key (FIT-030)', async ({
+    app,
+  }) => {
+    await app.click('Add Exercise');
+    const weight = app.page.getByLabel('Weight in kilograms');
+    await weight.fill('');
+    await weight.pressSequentially('31.8');
+    await expect(weight).toHaveValue('31.8');
+  });
+
   test('EXERCISE-08 and EXERCISE-09 preserve identity on edit and show the last-item empty state after delete (FIT-027, FIT-028)', async ({
     app,
   }) => {
