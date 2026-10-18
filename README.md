@@ -2,6 +2,12 @@
 
 Fitness-only, client-rendered Svelte single-page application. It is built with Vite and stores personal Fitness data in browser-local IndexedDB. It has no server-side rendering, service worker, application backend, telemetry, or runtime third-party asset dependency.
 
+## Documentation
+
+- [Product capabilities](docs/capabilities.md)
+- [Development specification](docs/development.md)
+- [Test specification](docs/testing.md)
+
 ## Toolchain
 
 - Node.js 24 LTS (`24.20.0` used by the initial lockfile), npm 11.19.0
