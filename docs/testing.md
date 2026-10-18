@@ -76,7 +76,7 @@ All projects run managed Chromium headless.
 ### Spec files and FIT coverage
 
 - `tests/browser/fitness-crud.spec.ts` — AVAIL-01…03, ROUTINE-01…08,
-  SESSION-01…08, EXERCISE-01…10 → FIT-001…FIT-030.
+  SESSION-01…08, EXERCISE-01…11 → FIT-001…FIT-030.
 - `tests/browser/fitness-progress-import.spec.ts` — SNAPSHOT-01…11,
   IMPORT-01…06, PERSIST-01…05 → FIT-031…FIT-052.
 - `tests/browser/cross-cutting.spec.ts` — axe accessibility (no

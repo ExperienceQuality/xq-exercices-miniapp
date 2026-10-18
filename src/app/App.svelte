@@ -63,7 +63,7 @@
     exerciseName = '',
     sets = 3,
     repetitions = 10,
-    weightKg = 0;
+    weightKg = '0';
   let confirmDelete:
     { kind: 'session' } | { kind: 'exercise'; id: string } | null = null;
   onMount(async () => {
@@ -229,7 +229,7 @@
       exerciseName = '';
       sets = 3;
       repetitions = 10;
-      weightKg = 0;
+      weightKg = '0';
     } catch {
       void 0;
     }
@@ -244,13 +244,13 @@
         exerciseName = item.name;
         sets = item.sets;
         repetitions = item.repetitions;
-        weightKg = item.weightKg;
+        weightKg = String(item.weightKg);
       }
     } else {
       exerciseName = '';
       sets = 3;
       repetitions = 10;
-      weightKg = 0;
+      weightKg = '0';
     }
     void focusEditor();
   };
@@ -261,6 +261,7 @@
     Number(sets) >= 1 &&
     Number.isInteger(Number(repetitions)) &&
     Number(repetitions) >= 1 &&
+    weightKg.trim() !== '' &&
     Number.isFinite(Number(weightKg)) &&
     Number(weightKg) >= 0;
 </script>
@@ -421,9 +422,7 @@
         ><label for="exercise-weight"
           >Weight in kilograms<input
             id="exercise-weight"
-            type="number"
-            min="0"
-            step="0.1"
+            type="text"
             inputmode="decimal"
             bind:value={weightKg}
           /></label
