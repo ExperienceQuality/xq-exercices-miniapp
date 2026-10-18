@@ -51,13 +51,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: google-chrome --version
+      - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run test:browser
       - if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: chrome-failure-diagnostics
-          path: reports/browser/
+          name: playwright-failure-diagnostics
+          path: |
+            playwright-report/
+            test-results/
           if-no-files-found: ignore
           retention-days: 7
