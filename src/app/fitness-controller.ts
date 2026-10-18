@@ -261,9 +261,11 @@ export class FitnessController {
         this.revision = result.storageRevision;
         this.selectedRoutineId = null;
         this.selectedSessionId = null;
+        this.error = '';
         this.notice = 'Fitness data imported.';
         this.notify();
       } catch (error) {
+        this.notice = '';
         this.error = safeError(error);
         this.notify();
       }

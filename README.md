@@ -6,7 +6,7 @@ Fitness-only, client-rendered Svelte single-page application. It is built with V
 
 - Node.js 24 LTS (`24.20.0` used by the initial lockfile), npm 11.19.0
 - Svelte 5.57.2, Vite 8.3.4, TypeScript 6.0.3, Vitest 4.1.1
-- WebdriverIO 9.31.1 with Chrome/ChromeDriver 155.0.8059.40 managed by WebdriverIO
+- Playwright Test 1.64.0 with managed Chromium and axe-core Playwright integration
 
 Install the Node major declared in `.nvmrc`, then run:
 
@@ -17,11 +17,12 @@ npm run lint
 npm run check
 npm run test:unit
 npm run build
+npx playwright install chromium
 ```
 
-`npm run test:browser` runs the authoritative acceptance suite against desktop Chrome and 390 x 844 and 320 x 568 touch-emulation profiles. Physical-device and iOS Simulator validation are outside scope; the earlier Appium/XCUITest smoke lane has been removed from the test strategy.
+`npm run test:browser` runs the authoritative acceptance suite against the `desktop-chrome`, `390x844-touch`, and `320x568-touch` Playwright projects. Physical-device and iOS Simulator validation are outside scope; the earlier Appium/XCUITest smoke lane has been removed from the test strategy.
 
-The browser suites are populated by the separate SDET assignment; they are intentionally absent in this foundation commit.
+The acceptance specs live in `tests/browser/` as Playwright specs covering availability, routine/session/exercise CRUD, progress snapshots, import compatibility, persistence, and cross-cutting accessibility, responsiveness, privacy, and base-path checks. Shared helpers and the `app` fixture live in `tests/browser/support/`. The legacy WebdriverIO suite has been fully ported and removed.
 
 ## Local data and privacy limits
 
