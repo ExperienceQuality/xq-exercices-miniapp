@@ -104,10 +104,29 @@ test.describe('Progress snapshot acceptance', () => {
     await app.importFixture('valid-v2.json');
     await app.expectText('Fitness data imported.');
     await app.click('Power Base');
-    const report = await app.bodyText();
-    for (const classification of ['Increased', 'Decreased', 'Same']) {
-      expect(report.toLowerCase()).toContain(classification.toLowerCase());
-    }
+    await expect(app.page.locator('.progress-arrow')).toHaveCount(4);
+    await expect(app.page.locator('.progress-increased')).toHaveCount(2);
+    await expect(app.page.locator('.progress-decreased')).toHaveCount(1);
+    await expect(app.page.locator('.progress-same')).toHaveCount(1);
+    await expect(app.page.locator('.progress-increased').first()).toHaveCSS(
+      'color',
+      'rgb(46, 125, 50)',
+    );
+    await expect(app.page.locator('.progress-decreased').first()).toHaveCSS(
+      'color',
+      'rgb(198, 40, 40)',
+    );
+    await expect(app.page.locator('.progress-same').first()).toHaveCSS(
+      'color',
+      'rgb(143, 147, 163)',
+    );
+    await expect(app.page.getByRole('img', { name: 'increased' })).toHaveCount(
+      2,
+    );
+    await expect(app.page.getByRole('img', { name: 'decreased' })).toHaveCount(
+      1,
+    );
+    await expect(app.page.getByRole('img', { name: 'same' })).toHaveCount(1);
   });
 
   test('SNAPSHOT-08 through SNAPSHOT-10 retain two immutable captures and allow immediate capture (FIT-038, FIT-039, FIT-040)', async ({
@@ -143,9 +162,9 @@ test.describe('Progress snapshot acceptance', () => {
     await app.page.reload();
     await app.click('Power Base');
     await expect(app.page.locator('.progress-row')).toHaveCount(2);
-    await app.expectText('Increased');
-    await app.expectText('Decreased');
-    await app.expectText('Same');
+    await expect(app.page.locator('.progress-increased')).toHaveCount(2);
+    await expect(app.page.locator('.progress-decreased')).toHaveCount(1);
+    await expect(app.page.locator('.progress-same')).toHaveCount(1);
   });
 });
 
@@ -314,6 +333,6 @@ test.describe('Persistence and recovery acceptance', () => {
     await expect(app.page.locator('.progress-row')).toHaveCount(2);
     await app.expectText('Upper');
     await app.expectText('Lower');
-    await app.expectText('Increased');
+    await expect(app.page.locator('.progress-increased').first()).toBeVisible();
   });
 });

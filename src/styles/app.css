@@ -207,6 +207,18 @@ h2 {
   flex: 0 0 auto;
   color: #a8abb8;
 }
+.progress-arrow {
+  font-weight: 700;
+}
+.progress-increased {
+  color: #2e7d32;
+}
+.progress-decreased {
+  color: #c62828;
+}
+.progress-same {
+  color: #8f93a3;
+}
 .static-row {
   gap: 12px;
   padding: 10px 16px;

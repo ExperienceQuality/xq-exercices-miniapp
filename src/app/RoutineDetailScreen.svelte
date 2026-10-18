@@ -1,5 +1,8 @@
 <script lang="ts">
-  import type { RoutineV2 } from '../fitness/domain/model';
+  import type { ProgressClass, RoutineV2 } from '../fitness/domain/model';
+
+  const progressArrow = (progress: ProgressClass) =>
+    progress === 'increased' ? '↑' : progress === 'decreased' ? '↓' : '→';
 
   let {
     routine,
@@ -111,14 +114,18 @@
         <li class="grouped-row static-row progress-row">
           <span class="row-copy"
             ><strong>{entry.name}</strong><small
-              >{entry.sets} sets · {entry.repetitions} reps{entry.repetitionsProgress ===
-              'first'
-                ? ''
-                : ` (${entry.repetitionsProgress})`} · {entry.weightKg}
-              kg{entry.weightProgress === 'first'
-                ? ''
-                : ` (${entry.weightProgress})`}{entry.repetitionsProgress ===
-                'first' || entry.weightProgress === 'first'
+              >{entry.sets} sets · {entry.repetitions} reps{#if entry.repetitionsProgress !== 'first'}&nbsp;<span
+                  class="progress-arrow progress-{entry.repetitionsProgress}"
+                  role="img"
+                  aria-label={entry.repetitionsProgress}
+                  >{progressArrow(entry.repetitionsProgress)}</span
+                >{/if} · {entry.weightKg} kg{#if entry.weightProgress !== 'first'}&nbsp;<span
+                  class="progress-arrow progress-{entry.weightProgress}"
+                  role="img"
+                  aria-label={entry.weightProgress}
+                  >{progressArrow(entry.weightProgress)}</span
+                >{/if}{entry.repetitionsProgress === 'first' ||
+              entry.weightProgress === 'first'
                 ? ' · First snapshot'
                 : ''}</small
             ></span
