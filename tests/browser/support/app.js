@@ -158,7 +158,9 @@ export const test = base.extend({
     const waitForEditorSave = async (fieldName, savedName) => {
       const normalizedName = savedName.trim();
       await waitForSettled(async () => {
-        const editorCount = await page.getByLabel(fieldName).count();
+        const editorCount = await page
+          .getByLabel(fieldName, { exact: true })
+          .count();
         return editorCount === 0 && (await bodyText()).includes(normalizedName);
       }, `${fieldName} editor did not close after saving ${normalizedName}.`);
     };

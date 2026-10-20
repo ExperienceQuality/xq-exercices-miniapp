@@ -226,6 +226,12 @@ h2 {
 .exercise-row {
   padding-right: 10px;
 }
+.exercise-row .exercise-name {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 .exercise-mark {
   display: grid;
   width: 34px;

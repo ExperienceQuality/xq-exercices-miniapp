@@ -92,7 +92,7 @@
           <span class="exercise-mark" aria-hidden="true"
             >{initials(exercise.name)}</span
           ><span class="row-copy"
-            ><strong>{exercise.name}</strong><small
+            ><strong class="exercise-name">{exercise.name}</strong><small
               >{exercise.sets} sets · {exercise.repetitions} reps · {exercise.weightKg}
               kg</small
             ></span

@@ -7,6 +7,7 @@
   import { createIndexedDbFitnessRepository } from '../fitness/persistence/indexeddb-fitness-repository';
   import { FitnessController, type EditorKind } from './fitness-controller';
   import type { ExerciseInput } from '../fitness/domain/commands';
+  import { parseDecimalInput } from '../fitness/ui/decimal';
   import type {
     FitnessDocumentV2,
     RoutineV2,
@@ -221,7 +222,7 @@
       name: exerciseName,
       sets: Number(sets),
       repetitions: Number(repetitions),
-      weightKg: Number(weightKg),
+      weightKg: parseDecimalInput(weightKg) ?? Number.NaN,
     };
     try {
       await controller.saveExercise(input);
@@ -255,15 +256,18 @@
     void focusEditor();
   };
   const validName = (value: string) => value.trim().length > 0;
-  const validExercise = () =>
-    validName(exerciseName) &&
-    Number.isInteger(Number(sets)) &&
-    Number(sets) >= 1 &&
-    Number.isInteger(Number(repetitions)) &&
-    Number(repetitions) >= 1 &&
-    weightKg.trim() !== '' &&
-    Number.isFinite(Number(weightKg)) &&
-    Number(weightKg) >= 0;
+  const validExercise = () => {
+    const weight = parseDecimalInput(weightKg);
+    return (
+      validName(exerciseName) &&
+      Number.isInteger(Number(sets)) &&
+      Number(sets) >= 1 &&
+      Number.isInteger(Number(repetitions)) &&
+      Number(repetitions) >= 1 &&
+      weight !== null &&
+      weight >= 0
+    );
+  };
 </script>
 
 <svelte:head><title>XQ Fitness</title></svelte:head>
