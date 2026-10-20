@@ -245,6 +245,44 @@ test.describe('Exercise acceptance', () => {
     await expect(weight).toHaveValue('31.8');
   });
 
+  test('EXERCISE-11 accepts a comma-separated decimal weight (FIT-030)', async ({
+    app,
+  }) => {
+    await app.click('Add Exercise');
+    await app.fill('Exercise name', 'Comma Weight Exercise');
+    const weight = app.page.getByLabel('Weight in kilograms');
+    await weight.fill('');
+    await weight.pressSequentially('12,5');
+    await expect(weight).toHaveValue('12,5');
+    await app.expectDisabled('Save', false);
+    await app.click('Save');
+    await app.waitForSettled(
+      async () => (await app.page.getByLabel('Exercise name').count()) === 0,
+      'Exercise editor did not close after saving Comma Weight Exercise.',
+    );
+    await app.expectText('12.5');
+  });
+
+  test('EXERCISE-01 wraps a long exercise name instead of truncating it (FIT-020)', async ({
+    app,
+  }) => {
+    const longName =
+      'Extremely long exercise name that must remain fully visible to the user';
+    await app.addExercise({ name: longName });
+    const name = app.page.locator('.exercise-row .exercise-name');
+    await expect(name).toHaveText(longName);
+    const metrics = await name.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        whiteSpace: style.whiteSpace,
+        height: element.getBoundingClientRect().height,
+        fontSize: Number.parseFloat(style.fontSize),
+      };
+    });
+    expect(metrics.whiteSpace).toBe('normal');
+    expect(metrics.height).toBeGreaterThan(metrics.fontSize * 1.5);
+  });
+
   test('EXERCISE-08 and EXERCISE-09 preserve identity on edit and show the last-item empty state after delete (FIT-027, FIT-028)', async ({
     app,
   }) => {
