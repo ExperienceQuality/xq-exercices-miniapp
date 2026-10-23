@@ -25,7 +25,7 @@ test.describe('Progress snapshot acceptance', () => {
     app,
   }) => {
     await app.addSession('Snapshot Session');
-    await app.click('Snapshot Session');
+    await app.openSession('Snapshot Session');
     await app.addExercise({
       name: 'Snapshot Lift',
       sets: 4,
@@ -61,7 +61,7 @@ test.describe('Progress snapshot acceptance', () => {
     app,
   }) => {
     await app.addSession('First Ordered Session');
-    await app.click('First Ordered Session');
+    await app.openSession('First Ordered Session');
     await app.addExercise({
       name: '  Bench Press  ',
       sets: 3,
@@ -70,7 +70,7 @@ test.describe('Progress snapshot acceptance', () => {
     });
     await app.click('Back');
     await app.addSession('Second Ordered Session');
-    await app.click('Second Ordered Session');
+    await app.openSession('Second Ordered Session');
     await app.addExercise({
       name: 'bench press',
       sets: 5,
@@ -133,7 +133,7 @@ test.describe('Progress snapshot acceptance', () => {
     app,
   }) => {
     await app.addSession('Capture Session');
-    await app.click('Capture Session');
+    await app.openSession('Capture Session');
     await app.addExercise({
       name: 'Immutable Lift',
       repetitions: 10,

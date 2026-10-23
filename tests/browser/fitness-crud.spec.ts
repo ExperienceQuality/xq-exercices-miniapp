@@ -110,7 +110,7 @@ test.describe('Training session acceptance', () => {
       'Session editor did not close after saving Session One.',
     );
     await app.expectText('Session One');
-    await app.click('Session One');
+    await app.openSession('Session One');
     await expect(
       app.page.getByRole('button', { name: 'Add Exercise' }).first(),
     ).toBeVisible();
@@ -134,7 +134,7 @@ test.describe('Training session acceptance', () => {
     app,
   }) => {
     await app.addSession('Keep Session');
-    await app.click('Keep Session');
+    await app.openSession('Keep Session');
     await app.addExercise({ name: 'Attached Exercise' });
     await app.click('Edit Training Session');
     await app.fill('Session name', '  Renamed Session  ');
@@ -150,7 +150,7 @@ test.describe('Training session acceptance', () => {
     await app.expectText('Attached Exercise');
     await app.click('Back');
     await app.addSession('Delete Session');
-    await app.click('Delete Session');
+    await app.openSession('Delete Session');
     await app.click('Delete Training Session');
     await app.page
       .getByRole('alertdialog')
@@ -171,7 +171,7 @@ test.describe('Exercise acceptance', () => {
     await app.click('Back');
     await app.click('Exercise Routine');
     await app.addSession('Session A');
-    await app.click('Session A');
+    await app.openSession('Session A');
   });
 
   test('EXERCISE-02 through EXERCISE-05 expose required labels, defaults, cancellation, and numeric validation (FIT-021, FIT-022, FIT-023, FIT-024, FIT-030)', async ({
@@ -208,12 +208,12 @@ test.describe('Exercise acceptance', () => {
     await app.expectText('Session A Exercise');
     await app.click('Back');
     await app.addSession('Session B');
-    await app.click('Session B');
+    await app.openSession('Session B');
     await app.addExercise({ name: 'Session B Exercise' });
     await app.expectText('Session B Exercise');
     await app.expectNoText('Session A Exercise');
     await app.click('Back');
-    await app.click('Session A');
+    await app.openSession('Session A');
     await app.expectText('Session A Exercise');
     await expect(app.page.locator('.exercise-row')).toHaveCount(1);
     await app.expectNoText('Session B Exercise');

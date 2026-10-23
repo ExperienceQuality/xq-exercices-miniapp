@@ -6,6 +6,7 @@ import {
   addSession,
   renameSession,
   deleteSession,
+  reorderSessions as reorderSessionsCommand,
   addExercise,
   editExercise,
   deleteExercise,
@@ -27,6 +28,7 @@ export class FitnessController {
   selectedSessionId: string | null = null;
   editor: EditorKind = null;
   editingExerciseId: string | null = null;
+  reorderPending = false;
   private mutationChain: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
   private loadCompletion?: Promise<void>;
@@ -184,6 +186,40 @@ export class FitnessController {
       );
       this.closeEditor();
     });
+  }
+  async reorderSessions(
+    routineId: string,
+    sessionIds: readonly string[],
+  ): Promise<void> {
+    // Reorders are never queued behind each other: a second call while a
+    // save is pending is suppressed even if the selected routine changed.
+    if (this.reorderPending) return;
+    this.reorderPending = true;
+    this.notify();
+    // Snapshot the caller's array: the candidate is built when the queue
+    // reaches it, so it must not observe later caller-side edits.
+    const queuedIds = [...sessionIds];
+    try {
+      await this.enqueueMutation(async () => {
+        await this.waitForLoad();
+        const candidate = reorderSessionsCommand(
+          this.document,
+          routineId,
+          queuedIds,
+        );
+        if (candidate === this.document) return;
+        await this.commit(candidate);
+      });
+    } catch (error) {
+      // commit() already surfaced repository failures; validation, missing
+      // routine, and other command-time errors need the same treatment.
+      this.error = safeError(error);
+      this.notify();
+      throw error;
+    } finally {
+      this.reorderPending = false;
+      this.notify();
+    }
   }
   async removeSession() {
     return this.enqueueMutation(async () => {

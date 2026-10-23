@@ -121,6 +121,30 @@ export const test = base.extend({
       );
     };
 
+    // Opening a session must target the row navigation button
+    // (.list-button) by exact name: the new reorder handle and
+    // "Move {name} up/down" controls would otherwise win the fuzzy
+    // `click(name)` locator match.
+    const openSession = async (name) => {
+      const button = page.locator('.list-button').filter({
+        has: page.locator('strong', {
+          hasText: new RegExp(`^${escapeRegExp(name)}$`),
+        }),
+      });
+      await waitForSettled(
+        async () => {
+          if ((await button.count()) === 0) return false;
+          const candidate = button.first();
+          if (!(await candidate.isVisible())) return false;
+          if (!(await candidate.isEnabled())) return false;
+          await candidate.click({ timeout: 1_000 });
+          return true;
+        },
+        `Session row ${name} could not be opened.`,
+        10_000,
+      );
+    };
+
     const fill = async (name, value) => {
       await waitForSettled(async () => {
         const text = (await bodyText()).toLowerCase();
@@ -315,6 +339,7 @@ export const test = base.extend({
       fixturePath,
       importFixture,
       installLoadGate: () => installLoadGate(context),
+      openSession,
       installNamespaceIsolation: () => installNamespaceIsolation(context),
       page,
       readFixture,

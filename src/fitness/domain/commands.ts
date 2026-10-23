@@ -121,6 +121,43 @@ export function renameSession(
   });
 }
 
+export function reorderSessions(
+  document: FitnessDocumentV2,
+  routineId: string,
+  sessionIds: readonly string[],
+): FitnessDocumentV2 {
+  const routineIndex = routineAt(document, routineId);
+  const routine = document.routines[routineIndex]!;
+  if (sessionIds.length !== routine.sessions.length) {
+    throw new FitnessError('validation', messages.invalidSessionOrder);
+  }
+  const seen = new Set<string>();
+  const ranks = new Map<string, number>();
+  for (const [position, sessionId] of sessionIds.entries()) {
+    if (
+      seen.has(sessionId) ||
+      !routine.sessions.some((session) => session.id === sessionId)
+    ) {
+      throw new FitnessError('validation', messages.invalidSessionOrder);
+    }
+    seen.add(sessionId);
+    ranks.set(sessionId, position + 1);
+  }
+  const sorted = [...routine.sessions].sort(
+    (left, right) => left.order - right.order,
+  );
+  if (sorted.every((session, index) => session.id === sessionIds[index])) {
+    return document;
+  }
+  return replaceRoutine(document, routineIndex, {
+    ...routine,
+    sessions: routine.sessions.map((session) => ({
+      ...session,
+      order: ranks.get(session.id)!,
+    })),
+  });
+}
+
 export function deleteSession(
   document: FitnessDocumentV2,
   routineId: string,
