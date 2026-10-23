@@ -244,13 +244,17 @@
     // Keep focus with the moved session. The activated control may have
     // blurred to the body when the pending state disabled it, or it may now
     // sit at a boundary — focus an enabled control on the moved row in
-    // either case; never touch focus after the list has unmounted.
+    // either case; never touch focus after the list has unmounted, and
+    // never steal focus the user deliberately moved elsewhere mid-save.
     await tick();
     const row = listElement?.querySelector<HTMLElement>(
       `li[data-session-id="${CSS.escape(sessionId)}"]`,
     );
     if (!row?.isConnected) return;
     const active = document.activeElement;
+    if (active !== document.body && active !== null && !row.contains(active)) {
+      return;
+    }
     if (
       active instanceof HTMLButtonElement &&
       !active.disabled &&
@@ -267,7 +271,11 @@
     (preferred && !preferred.disabled ? preferred : fallback)?.focus();
   };
 
-  const membership = $derived(committed.map((session) => session.id).join(''));
+  // JSON.stringify keeps the signature unambiguous: arbitrary session IDs
+  // could concatenate identically ('ab'+'c' vs 'a'+'bc').
+  const membership = $derived(
+    JSON.stringify(committed.map((session) => session.id)),
+  );
 
   let previousMembership = '';
   $effect(() => {

@@ -272,4 +272,65 @@ describe('SessionList', () => {
     expect(onOpenSession).toHaveBeenCalledWith('a');
     expect(onReorderSessions).not.toHaveBeenCalled();
   });
+
+  // FIT-062: a deliberate focus change during a pending save wins; the
+  // component must not steal focus back to the moved row.
+  it('keeps deliberate focus outside the moved row after a pending save', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderList(
+      [
+        session('a', 'Alpha', 1),
+        session('b', 'Beta', 2),
+        session('c', 'Gamma', 3),
+      ],
+      vi.fn(() => gate),
+    );
+    const list = screen.getByRole('list', { name: 'Training sessions' });
+    const deliberate = screen
+      .getByRole('button', { name: 'Reorder Gamma' })
+      .closest('li')!
+      .querySelector<HTMLElement>('.list-button')!;
+    await fireEvent.click(
+      screen.getByRole('button', { name: 'Move Alpha down' }),
+    );
+    // The user deliberately focuses another row's navigation button while
+    // the reorder save is in flight.
+    deliberate.focus();
+    release();
+    await vi.waitFor(() =>
+      expect(list.getAttribute('aria-busy')).toBe('false'),
+    );
+    await vi.waitFor(() => expect(document.activeElement).toBe(deliberate));
+  });
+
+  // FIT-075: a session-membership change mid-drag cancels the gesture even
+  // when the ID sets collide under naive string concatenation
+  // ('ab'+'c' === 'a'+'bc' — the signature must be unambiguous).
+  it('cancels a drag when session membership changes mid-gesture', async () => {
+    const onReorderSessions = vi.fn(async () => {});
+    const { rerender } = render(SessionList, {
+      props: {
+        sessions: [session('ab', 'Alpha', 1), session('c', 'Beta', 2)],
+        onOpenSession: vi.fn(),
+        onReorderSessions,
+      },
+    });
+    const handle = screen.getByRole('button', { name: 'Reorder Alpha' });
+    await fireEvent(handle, pointer('pointerdown', { clientY: 10 }));
+    await fireEvent(handle, pointer('pointermove', { clientY: 80 }));
+    await rerender({
+      sessions: [session('a', 'Alpha', 1), session('bc', 'Beta', 2)],
+      onOpenSession: vi.fn(),
+      onReorderSessions,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Fire on window: the rerender detaches the old rows, and the gesture's
+    // listeners live on window — this is the release that must not write.
+    await fireEvent(window, pointer('pointerup', { clientY: 80 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onReorderSessions).not.toHaveBeenCalled();
+  });
 });
