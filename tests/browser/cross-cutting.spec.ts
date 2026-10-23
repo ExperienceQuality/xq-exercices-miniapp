@@ -19,7 +19,7 @@ test.describe('Cross-cutting Chrome acceptance', () => {
     ).toBeFocused();
     await app.click('Accessible Synthetic Routine');
     await app.addSession('Accessible Session');
-    await app.click('Accessible Session');
+    await app.openSession('Accessible Session');
     await expect(
       app.page.getByRole('heading', { name: 'Accessible Session' }),
     ).toBeFocused();
@@ -78,7 +78,7 @@ test.describe('Cross-cutting Chrome acceptance', () => {
     await app.click('Back');
     await app.click('Responsive Routine');
     await app.addSession('Responsive Session');
-    await app.click('Responsive Session');
+    await app.openSession('Responsive Session');
     await app.click('Add Exercise');
 
     const metrics = await app.page.evaluate(() => ({

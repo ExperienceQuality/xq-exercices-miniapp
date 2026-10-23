@@ -16,8 +16,12 @@ dependency.
 
 ### Training sessions
 
-- Add named sessions to a routine; each session gets a monotonically
-  increasing `order` (append-only, never renumbered on delete).
+- Add named sessions to a routine; new sessions append at
+  `max(order) + 1` and deletes never renumber.
+- Reorder sessions within a routine via a drag handle (mouse/touch
+  pointer drag with edge autoscroll) or keyboard-operable move-up /
+  move-down buttons; reorder reassigns unique `order` values while
+  names, IDs, exercises, and snapshots stay untouched.
 - Rename or delete a session (delete has a confirmation dialog and
   removes the session's exercises).
 - Sessions appear as a list sorted by `order`; tapping one drills into a

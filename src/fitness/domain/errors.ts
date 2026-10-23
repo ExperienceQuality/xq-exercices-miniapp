@@ -27,6 +27,7 @@ export const messages = {
   missingRoutine: 'The routine no longer exists.',
   missingSession: 'The training session no longer exists.',
   missingExercise: 'The exercise no longer exists.',
+  invalidSessionOrder: 'Session order must include every session exactly once.',
   invalidImport: 'The selected Fitness file is invalid.',
   unsupportedVersion: 'This Fitness data version is not supported.',
   conflict: 'Fitness data changed in another tab. Reload and try again.',

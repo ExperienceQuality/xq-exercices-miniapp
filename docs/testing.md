@@ -11,7 +11,7 @@ Two lanes plus traceability, all enforced in CI:
    production build served by `vite preview` (real IndexedDB, real
    rendering). This is the authoritative acceptance suite.
 3. **Traceability** — `npm run test:traceability` scans `src/` and
-   `tests/` for `FIT-NNN` references and fails if any of the 52
+   `tests/` for `FIT-NNN` references and fails if any of the 76
    accepted criteria is unreferenced. `tests/browser/traceability.js`
    holds developer-owned mappings (e.g. FIT-029 white-box).
 
@@ -19,7 +19,7 @@ Two lanes plus traceability, all enforced in CI:
 
 ```sh
 npm run test:unit          # Vitest + coverage (jsdom)
-npm run test:traceability  # FIT-001…FIT-052 reference enforcement
+npm run test:traceability  # FIT-001…FIT-076 reference enforcement
 npm run test:browser       # playwright test (webServer auto-starts preview)
 npm run test:no-only       # part of `npm run lint`; blocks .only
 ```
@@ -42,6 +42,9 @@ Colocated `*.test.ts`:
 
 - `src/fitness/domain/commands.test.ts` — mutations, validation,
   missing-entity errors, snapshot capture.
+- `src/fitness/domain/session-ordering.test.ts` — reorder permutation
+  validation, no-op identity, gaps, immutable input, snapshot and
+  other-routine preservation, append/delete after reorder.
 - `src/fitness/persistence/schemas.test.ts` — zod invariants and
   version inspection.
 - `src/fitness/persistence/indexeddb-fitness-repository.test.ts` —
@@ -49,6 +52,11 @@ Colocated `*.test.ts`:
   fail-closed (fake-indexeddb).
 - `src/app/fitness-controller.test.ts` — status transitions, mutation
   serialization, selection, import flow.
+- `src/app/fitness-controller-reordering.test.ts` — reorder pending
+  suppression, no-op skip, failure/conflict rollback, queued input
+  snapshotting.
+- `src/app/SessionList.test.ts` — reorder controls, keyboard moves,
+  focus retention, live announcements, drag cancellation.
 - `src/app/dependencies.test.ts` — DB namespace resolution and run-ID
   validation.
 
@@ -83,6 +91,20 @@ All projects run managed Chromium headless.
   serious/critical violations), responsive overflow/touch sizing,
   zero-network after load, Pages base path, privacy (no fitness data in
   URL/requests/console).
+- `tests/browser/session-reordering.spec.ts` — SRO-01…SRO-24 session
+  reordering → FIT-053…FIT-076 (FIT-054 cross-routine refusal is
+  domain-owned via `traceability.js`). Covers real mouse handle drag,
+  trusted CDP `Input.dispatchTouchEvent` touch drags on `hasTouch`
+  projects, row-body tap navigation, native touch scroll outside the
+  handle, keyboard move controls + focus + polite status, empty/single
+  boundary states, Escape/pointercancel/no-op no-write, long-list edge
+  autoscroll, offline save + reload, abort/conflict rollback, pending
+  suppression (`aria-busy` + disabled controls), generated-label
+  removal, duplicate-name `data-session-id` identity, append/delete,
+  data/snapshot/other-routine preservation, axe + 44px targets.
+  Helpers live in `tests/browser/support/session-reordering.ts`
+  (locators, committed-record readers, CDP touch gestures, narrow
+  IndexedDB gate/abort shims).
 
 ### Test isolation
 
@@ -95,7 +117,9 @@ unique per scenario and project. The `app` fixture exposes helpers
 `addSession`, `addExercise`, `importFixture`, `seedRecords`).
 `seedRecords` writes directly to `xq-fitness` (production name) to
 verify primary/recovery restore and namespace isolation without UI
-steps.
+steps. `openSession(name)` clicks the row `.list-button` by exact
+session-name match so the new `Move {name} up/down` and `Reorder
+{name}` controls never win the fuzzy `click(name)` locator.
 
 ### Fixtures
 

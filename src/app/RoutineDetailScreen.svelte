@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ProgressClass, RoutineV2 } from '../fitness/domain/model';
+  import SessionList from './SessionList.svelte';
 
   const progressArrow = (progress: ProgressClass) =>
     progress === 'increased' ? '↑' : progress === 'decreased' ? '↓' : '→';
@@ -10,12 +11,16 @@
     onOpenSession,
     onAddSession,
     onCaptureSnapshot,
+    onReorderSessions,
+    reorderPending = false,
   }: {
     routine: RoutineV2;
     onBack: () => void;
     onOpenSession: (id: string) => void;
     onAddSession: () => void;
     onCaptureSnapshot: () => void;
+    onReorderSessions: (sessionIds: readonly string[]) => Promise<void>;
+    reorderPending?: boolean;
   } = $props();
 
   const latest = $derived(routine.snapshots.at(-1));
@@ -56,43 +61,20 @@
     >
   </div>
   {#if routine.sessions.length === 0}
-    <ul class="grouped-list">
+    <ul class="grouped-list" aria-label="Training sessions">
       <li class="grouped-row static-row empty-list-row">
         No training sessions. Add a session, then add exercises.
       </li>
     </ul>
   {:else}
-    <ul class="grouped-list">
-      {#each [...routine.sessions].sort((a, b) => a.order - b.order) as item (item.id)}
-        <li class="grouped-row">
-          <button
-            class="list-button"
-            type="button"
-            onclick={() => onOpenSession(item.id)}
-            ><span class="row-copy"
-              ><strong>{item.name}</strong><small
-                >Session {item.order} · {item.exercises.length}
-                {item.exercises.length === 1 ? 'exercise' : 'exercises'}</small
-              ></span
-            ><svg
-              class="row-chevron-icon"
-              width="21"
-              height="21"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-              ><path
-                d="M9 6l6 6-6 6"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              /></svg
-            ></button
-          >
-        </li>
-      {/each}
-    </ul>
+    {#key routine.id}
+      <SessionList
+        sessions={routine.sessions}
+        {onOpenSession}
+        {onReorderSessions}
+        {reorderPending}
+      />
+    {/key}
   {/if}
 
   <div class="section-heading-row">

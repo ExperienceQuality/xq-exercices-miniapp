@@ -35,6 +35,7 @@
   let notice: string | null = null;
   let error: string | null = null;
   let editingExerciseId: string | null = null;
+  let reorderPending = controller.reorderPending;
   // Drill-down level: routines list, routine detail, or session detail.
   let screen: 'routines' | 'routine' | 'session' = 'routines';
   const unsubscribe = controller.subscribe(() => {
@@ -46,6 +47,7 @@
     notice = controller.notice;
     error = controller.error;
     editingExerciseId = controller.editingExerciseId;
+    reorderPending = controller.reorderPending;
     if (!controller.routine) {
       screen = 'routines';
     } else if (
@@ -323,6 +325,9 @@
           onCaptureSnapshot={() => {
             void controller.snapshot().catch(() => {});
           }}
+          onReorderSessions={(sessionIds) =>
+            controller.reorderSessions(routine!.id, sessionIds)}
+          {reorderPending}
         />
       {:else}
         <RoutinesScreen

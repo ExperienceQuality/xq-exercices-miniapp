@@ -70,7 +70,7 @@
 
   <p class="section-label">Session</p>
   <h1 tabindex="-1">{session.name}</h1>
-  <p class="subtitle">{routine.name} · Session {session.order}</p>
+  <p class="subtitle">{routine.name}</p>
 
   <div class="section-heading-row">
     <p class="section-label">Exercises</p>
