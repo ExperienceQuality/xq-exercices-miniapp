@@ -39,8 +39,8 @@
         disabled={!dataReady}
         onclick={onCreateRoutine}
         ><svg
-          width="22"
-          height="22"
+          width="28"
+          height="28"
           viewBox="0 0 24 24"
           fill="none"
           aria-hidden="true"
@@ -82,15 +82,15 @@
               ></span
             ><svg
               class="row-chevron-icon"
-              width="21"
-              height="21"
+              width="28"
+              height="28"
               viewBox="0 0 24 24"
               fill="none"
               aria-hidden="true"
               ><path
                 d="M9 6l6 6-6 6"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="2.4"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               /></svg

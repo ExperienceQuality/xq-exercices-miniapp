@@ -36,10 +36,14 @@ const pointer = (
   return event;
 };
 
+const grip = (name: string) =>
+  screen.getByRole('button', { name: `Reorder ${name}` });
+
 describe('SessionList', () => {
-  // FIT-059/FIT-062: accessible names for the list, handle, and move
-  // controls, rendered as siblings of the row navigation button.
-  it('exposes labelled list, handles, and move controls as row siblings', () => {
+  // FIT-059/FIT-062: accessible names for the list and the grip, rendered
+  // as a sibling of the row navigation button — there are no visible
+  // up/down buttons in the new affordance.
+  it('exposes a labelled list and one grip per row beside the opener', () => {
     renderList([
       session('a', 'Alpha', 1),
       session('b', 'Beta', 2),
@@ -48,42 +52,45 @@ describe('SessionList', () => {
     expect(
       screen.getByRole('list', { name: 'Training sessions' }),
     ).toBeTruthy();
-    const handle = screen.getByRole('button', { name: 'Reorder Beta' });
-    const up = screen.getByRole('button', { name: 'Move Beta up' });
+    const handle = grip('Beta');
     const row = handle.closest('li')!;
     expect(row.dataset.sessionId).toBe('b');
     expect(row.querySelector('.list-button')).toBeTruthy();
     expect(row.querySelector('.list-button')!.contains(handle)).toBe(false);
-    expect(row.querySelector('.list-button')!.contains(up)).toBe(false);
+    expect(row.querySelectorAll('[data-move]')).toHaveLength(0);
+    expect(
+      screen.queryByRole('button', { name: /Move Beta (up|down)/ }),
+    ).toBeNull();
   });
 
-  // FIT-063: boundary controls are disabled; middle controls are enabled.
-  it('disables move controls at list boundaries', () => {
+  // FIT-063: the tap-to-move menu disables boundary items; grips never
+  // become the visible arrow buttons.
+  it('disables the boundary menu items', async () => {
     renderList([session('a', 'Alpha', 1), session('b', 'Beta', 2)]);
+    await fireEvent.click(grip('Alpha'));
     expect(
-      screen.getByRole('button', { name: 'Move Alpha up' }),
+      screen.getByRole('menuitem', { name: 'Move earlier' }),
     ).toHaveProperty('disabled', true);
-    expect(
-      screen.getByRole('button', { name: 'Move Alpha down' }),
-    ).toHaveProperty('disabled', false);
-    expect(
-      screen.getByRole('button', { name: 'Move Beta down' }),
-    ).toHaveProperty('disabled', true);
+    expect(screen.getByRole('menuitem', { name: 'Move later' })).toHaveProperty(
+      'disabled',
+      false,
+    );
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await fireEvent.click(grip('Beta'));
+    expect(screen.getByRole('menuitem', { name: 'Move later' })).toHaveProperty(
+      'disabled',
+      true,
+    );
   });
 
   // FIT-056: a singleton list exposes no enabled reorder control.
   it('offers no enabled reorder control for a single session', () => {
     renderList([session('a', 'Solo', 1)]);
-    for (const label of ['Reorder Solo', 'Move Solo up', 'Move Solo down']) {
-      expect(screen.getByRole('button', { name: label })).toHaveProperty(
-        'disabled',
-        true,
-      );
-    }
+    expect(grip('Solo')).toHaveProperty('disabled', true);
   });
 
-  // FIT-070/FIT-071: no generated numbering; user-authored "Session 1" is
-  // kept.
+  // FIT-070/FIT-071: no generated numbering; a user-authored "Session 1"
+  // is kept.
   it('shows only the exercise count and preserves a user name "Session 1"', () => {
     renderList([session('a', 'Session 1', 1), session('b', 'Legs', 2)]);
     expect(screen.getByText('Session 1')).toBeTruthy();
@@ -91,17 +98,31 @@ describe('SessionList', () => {
     expect(screen.queryByText(/Session 2/)).toBeNull();
   });
 
-  // FIT-062/FIT-064: move buttons commit the permutation, announce the
-  // result, and keep focus.
+  // FIT-057/FIT-058: sessions are sorted by numeric order before display,
+  // not document order.
+  it('sorts sessions by their numeric order field', () => {
+    renderList([
+      session('b', 'Beta', 20),
+      session('a', 'Alpha', 3),
+      session('c', 'Gamma', 10),
+    ]);
+    const rows = Array.from(
+      document.querySelectorAll('li[data-session-id]'),
+    ).map((row) => (row as HTMLElement).dataset.sessionId);
+    expect(rows).toEqual(['a', 'c', 'b']);
+  });
+
+  // FIT-062/FIT-064: a keyboard move commits the permutation, announces
+  // the result, and keeps focus on the moved session's grip.
   it('moves a session down, announces the result, and keeps focus', async () => {
     const { onReorderSessions } = renderList([
       session('a', 'Alpha', 1),
       session('b', 'Beta', 2),
       session('c', 'Gamma', 3),
     ]);
-    const control = screen.getByRole('button', { name: 'Move Alpha down' });
-    control.focus();
-    await fireEvent.click(control);
+    const handle = grip('Alpha');
+    handle.focus();
+    await fireEvent.keyDown(handle, { key: 'ArrowDown' });
     await vi.waitFor(() =>
       expect(onReorderSessions).toHaveBeenCalledWith(['b', 'a', 'c']),
     );
@@ -109,6 +130,20 @@ describe('SessionList', () => {
       expect(screen.getByRole('status').textContent).toContain(
         'Alpha moved to position 2.',
       ),
+    );
+    await vi.waitFor(() => expect(document.activeElement).toBe(grip('Alpha')));
+  });
+
+  // FIT-062: the move menu drives the same reorder pipeline.
+  it('moves a session via the tap-to-move menu', async () => {
+    const { onReorderSessions } = renderList([
+      session('a', 'Alpha', 1),
+      session('b', 'Beta', 2),
+    ]);
+    await fireEvent.click(grip('Alpha'));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Move later' }));
+    await vi.waitFor(() =>
+      expect(onReorderSessions).toHaveBeenCalledWith(['b', 'a']),
     );
   });
 
@@ -123,18 +158,13 @@ describe('SessionList', () => {
       vi.fn(() => gate),
     );
     const list = screen.getByRole('list', { name: 'Training sessions' });
-    await fireEvent.click(
-      screen.getByRole('button', { name: 'Move Alpha down' }),
-    );
+    const alpha = grip('Alpha');
+    alpha.focus();
+    await fireEvent.keyDown(alpha, { key: 'ArrowDown' });
     expect(list.getAttribute('aria-busy')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Move Beta up' })).toHaveProperty(
-      'disabled',
-      true,
-    );
-    expect(screen.getByRole('button', { name: 'Reorder Beta' })).toHaveProperty(
-      'disabled',
-      true,
-    );
+    expect(grip('Beta')).toHaveProperty('disabled', true);
+    await fireEvent.click(grip('Beta'));
+    expect(screen.queryByRole('menu')).toBeNull();
     release();
     await vi.waitFor(() =>
       expect(list.getAttribute('aria-busy')).toBe('false'),
@@ -142,7 +172,8 @@ describe('SessionList', () => {
     expect(onReorderSessions).toHaveBeenCalledTimes(1);
   });
 
-  // FIT-066: a failed save rolls back to the committed order without retry.
+  // FIT-066: a failed save rolls back to the committed order without
+  // retry and announces the failure.
   it('rolls back the preview and re-enables controls after a failed save', async () => {
     const { onReorderSessions } = renderList(
       [session('a', 'Alpha', 1), session('b', 'Beta', 2)],
@@ -150,13 +181,16 @@ describe('SessionList', () => {
         throw new Error('save failed');
       }),
     );
-    await fireEvent.click(
-      screen.getByRole('button', { name: 'Move Alpha down' }),
+    const alpha = grip('Alpha');
+    alpha.focus();
+    await fireEvent.keyDown(alpha, { key: 'ArrowDown' });
+    await vi.waitFor(() =>
+      expect(grip('Beta')).toHaveProperty('disabled', false),
     );
     await vi.waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Move Beta up' }),
-      ).toHaveProperty('disabled', false),
+      expect(screen.getByRole('status').textContent).toContain(
+        'Could not move Alpha.',
+      ),
     );
     expect(onReorderSessions).toHaveBeenCalledTimes(1);
   });
@@ -168,7 +202,7 @@ describe('SessionList', () => {
       session('b', 'Beta', 2),
       session('c', 'Gamma', 3),
     ]);
-    const handle = screen.getByRole('button', { name: 'Reorder Alpha' });
+    const handle = grip('Alpha');
     await fireEvent(handle, pointer('pointerdown', { clientY: 10 }));
     await fireEvent(handle, pointer('pointermove', { clientY: 80 }));
     await fireEvent(handle, pointer('pointerup', { clientY: 80 }));
@@ -184,7 +218,7 @@ describe('SessionList', () => {
       session('b', 'Beta', 2),
       session('c', 'Gamma', 3),
     ]);
-    const handle = screen.getByRole('button', { name: 'Reorder Alpha' });
+    const handle = grip('Alpha');
     await fireEvent(handle, pointer('pointerdown', { clientY: 10 }));
     await fireEvent(handle, pointer('pointermove', { clientY: 80 }));
     await fireEvent.keyDown(window, { key: 'Escape' });
@@ -193,13 +227,14 @@ describe('SessionList', () => {
     expect(onReorderSessions).not.toHaveBeenCalled();
   });
 
-  // FIT-075: a drop back on the original position is a no-op.
+  // FIT-075: a sub-threshold release writes nothing; the tap may open the
+  // move menu instead.
   it('writes nothing when the pointer never crosses the threshold', async () => {
     const { onReorderSessions } = renderList([
       session('a', 'Alpha', 1),
       session('b', 'Beta', 2),
     ]);
-    const handle = screen.getByRole('button', { name: 'Reorder Alpha' });
+    const handle = grip('Alpha');
     await fireEvent(handle, pointer('pointerdown', { clientY: 10 }));
     await fireEvent(handle, pointer('pointermove', { clientY: 12 }));
     await fireEvent(handle, pointer('pointerup', { clientY: 12 }));
@@ -207,8 +242,8 @@ describe('SessionList', () => {
     expect(onReorderSessions).not.toHaveBeenCalled();
   });
 
-  // FIT-068: a reorder pending elsewhere suppresses controls and marks the
-  // list busy even though this list has no local save in flight.
+  // FIT-068: a reorder pending elsewhere suppresses controls and marks
+  // the list busy even though this list has no local save in flight.
   it('disables controls and marks the list busy while an external reorder is pending', () => {
     renderList(
       [session('a', 'Alpha', 1), session('b', 'Beta', 2)],
@@ -217,14 +252,7 @@ describe('SessionList', () => {
     );
     const list = screen.getByRole('list', { name: 'Training sessions' });
     expect(list.getAttribute('aria-busy')).toBe('true');
-    for (const label of [
-      'Reorder Alpha',
-      'Move Alpha up',
-      'Move Alpha down',
-      'Reorder Beta',
-      'Move Beta up',
-      'Move Beta down',
-    ]) {
+    for (const label of ['Reorder Alpha', 'Reorder Beta']) {
       expect(screen.getByRole('button', { name: label })).toHaveProperty(
         'disabled',
         true,
@@ -240,7 +268,7 @@ describe('SessionList', () => {
       session('b', 'Beta', 2),
       session('c', 'Gamma', 3),
     ]);
-    const handle = screen.getByRole('button', { name: 'Reorder Alpha' });
+    const handle = grip('Alpha');
     await fireEvent(
       handle,
       pointer('pointerdown', { clientY: 10, pointerId: 1 }),
@@ -259,15 +287,13 @@ describe('SessionList', () => {
     );
   });
 
-  // FIT-059: tapping the row body opens the session; the controls never do.
-  it('navigates from the row body and never from the controls', async () => {
+  // FIT-059: tapping the row body opens the session; the grip never does.
+  it('navigates from the row body and never from the grip', async () => {
     const { onOpenSession, onReorderSessions } = renderList([
       session('a', 'Alpha', 1),
       session('b', 'Beta', 2),
     ]);
-    const row = screen
-      .getByRole('button', { name: 'Reorder Alpha' })
-      .closest('li')!;
+    const row = grip('Alpha').closest('li')!;
     await fireEvent.click(row.querySelector('.list-button')!);
     expect(onOpenSession).toHaveBeenCalledWith('a');
     expect(onReorderSessions).not.toHaveBeenCalled();
@@ -289,13 +315,10 @@ describe('SessionList', () => {
       vi.fn(() => gate),
     );
     const list = screen.getByRole('list', { name: 'Training sessions' });
-    const deliberate = screen
-      .getByRole('button', { name: 'Reorder Gamma' })
+    const deliberate = grip('Gamma')
       .closest('li')!
       .querySelector<HTMLElement>('.list-button')!;
-    await fireEvent.click(
-      screen.getByRole('button', { name: 'Move Alpha down' }),
-    );
+    await fireEvent.keyDown(grip('Alpha'), { key: 'ArrowDown' });
     // The user deliberately focuses another row's navigation button while
     // the reorder save is in flight.
     deliberate.focus();
@@ -306,8 +329,8 @@ describe('SessionList', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(deliberate));
   });
 
-  // FIT-075: a session-membership change mid-drag cancels the gesture even
-  // when the ID sets collide under naive string concatenation
+  // FIT-075: a session-membership change mid-drag cancels the gesture
+  // even when the ID sets collide under naive string concatenation
   // ('ab'+'c' === 'a'+'bc' — the signature must be unambiguous).
   it('cancels a drag when session membership changes mid-gesture', async () => {
     const onReorderSessions = vi.fn(async () => {});
@@ -318,7 +341,7 @@ describe('SessionList', () => {
         onReorderSessions,
       },
     });
-    const handle = screen.getByRole('button', { name: 'Reorder Alpha' });
+    const handle = grip('Alpha');
     await fireEvent(handle, pointer('pointerdown', { clientY: 10 }));
     await fireEvent(handle, pointer('pointermove', { clientY: 80 }));
     await rerender({
@@ -327,8 +350,9 @@ describe('SessionList', () => {
       onReorderSessions,
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    // Fire on window: the rerender detaches the old rows, and the gesture's
-    // listeners live on window — this is the release that must not write.
+    // Fire on window: the rerender detaches the old rows, and the
+    // gesture's listeners live on window — this is the release that must
+    // not write.
     await fireEvent(window, pointer('pointerup', { clientY: 80 }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(onReorderSessions).not.toHaveBeenCalled();

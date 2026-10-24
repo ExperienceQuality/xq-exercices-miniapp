@@ -234,6 +234,39 @@ export const test = base.extend({
       }, `Import did not complete for ${name}.`);
     };
 
+    // Imports an in-memory schema-v2 document through the existing file
+    // input — lets reorder tests use ordered fixtures without adding repo
+    // fixture files.
+    const importDocument = async (
+      document,
+      filename = 'inline-import.json',
+    ) => {
+      const input = page.locator('input[type="file"]');
+      await input.waitFor({ state: 'attached', timeout: 10_000 });
+      await input.setInputFiles({
+        name: filename,
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify(document), 'utf8'),
+      });
+      await waitForSettled(async () => {
+        const text = (await bodyText()).toLowerCase();
+        return [
+          'imported.',
+          'invalid',
+          'not supported',
+          'could not be saved',
+        ].some((message) => text.includes(message));
+      }, `Import did not complete for ${filename}.`);
+    };
+
+    // Applies browser text scaling by setting the root font size (the
+    // 200%-text-zoom contract), NOT by shrinking the layout viewport.
+    const setTextScale = async (factor) => {
+      await page.evaluate((value) => {
+        document.documentElement.style.fontSize = `${value * 100}%`;
+      }, factor);
+    };
+
     const allInteractiveControls = () =>
       page.locator('button, a[href], input, select, textarea');
 
@@ -337,6 +370,7 @@ export const test = base.extend({
       expectText,
       fill,
       fixturePath,
+      importDocument,
       importFixture,
       installLoadGate: () => installLoadGate(context),
       openSession,
@@ -344,6 +378,7 @@ export const test = base.extend({
       page,
       readFixture,
       seedRecords,
+      setTextScale,
       startFreshApp,
       waitForSettled,
     });

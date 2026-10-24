@@ -35,6 +35,7 @@ const renderScreen = (session: TrainingSessionV2) =>
       onAddExercise: () => {},
       onEditExercise: () => {},
       onDeleteExercise: () => {},
+      onReorderExercises: async () => {},
       onRenameSession: () => {},
       onDeleteSession: () => {},
     },

@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const enforce = process.argv.includes('--enforce');
 const expected = Array.from(
-  { length: 76 },
+  { length: 111 },
   (_, index) => `FIT-${String(index + 1).padStart(3, '0')}`,
 );
 const discovered = new Map(expected.map((id) => [id, []]));

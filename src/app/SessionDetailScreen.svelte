@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { RoutineV2, TrainingSessionV2 } from '../fitness/domain/model';
+  import ExerciseList from './ExerciseList.svelte';
 
   let {
     routine,
@@ -8,6 +9,8 @@
     onAddExercise,
     onEditExercise,
     onDeleteExercise,
+    onReorderExercises,
+    reorderPending = false,
     onRenameSession,
     onDeleteSession,
   }: {
@@ -17,18 +20,11 @@
     onAddExercise: () => void;
     onEditExercise: (id: string) => void;
     onDeleteExercise: (id: string) => void;
+    onReorderExercises: (exerciseIds: readonly string[]) => Promise<void>;
+    reorderPending?: boolean;
     onRenameSession: () => void;
     onDeleteSession: () => void;
   } = $props();
-
-  const initials = (name: string) =>
-    name
-      .split(' ')
-      .filter((part) => part.length > 0)
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
 </script>
 
 <section class="page-screen" aria-label={`${session.name} session`}>
@@ -39,8 +35,8 @@
       aria-label="Back"
       onclick={onBack}
       ><svg
-        width="22"
-        height="22"
+        width="28"
+        height="28"
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"
@@ -86,29 +82,15 @@
       >
     </div>
   {:else}
-    <ul class="grouped-list">
-      {#each session.exercises as exercise (exercise.id)}
-        <li class="grouped-row static-row exercise-row">
-          <span class="exercise-mark" aria-hidden="true"
-            >{initials(exercise.name)}</span
-          ><span class="row-copy"
-            ><strong class="exercise-name">{exercise.name}</strong><small
-              >{exercise.sets} sets · {exercise.repetitions} reps · {exercise.weightKg}
-              kg</small
-            ></span
-          ><button
-            class="quiet"
-            type="button"
-            aria-label={`Edit ${exercise.name}`}
-            onclick={() => onEditExercise(exercise.id)}>Edit</button
-          ><button
-            class="quiet danger row-delete"
-            type="button"
-            aria-label={`Delete ${exercise.name}`}
-            onclick={() => onDeleteExercise(exercise.id)}>Delete</button
-          >
-        </li>
-      {/each}
-    </ul>
+    {#key `${routine.id}:${session.id}`}
+      <ExerciseList
+        exercises={session.exercises}
+        {onEditExercise}
+        {onDeleteExercise}
+        {onReorderExercises}
+        {reorderPending}
+      />
+    {/key}
+    <p class="list-hint">Drag the grip to reorder exercises.</p>
   {/if}
 </section>
