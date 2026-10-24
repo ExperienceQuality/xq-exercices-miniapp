@@ -85,6 +85,13 @@ h2 {
   gap: 0.75rem;
   padding: 0 0.25rem;
 }
+/* Flex children default to min-width:auto, which would pin the title
+   column at the unbreakable word's width ("Routines" at 200% text scaling
+   is wider than a 320px line) and overflow the viewport. Allowing the
+   column to shrink lets h1's overflow-wrap break instead. */
+.page-header > div {
+  min-width: 0;
+}
 .header-actions {
   display: flex;
   flex-wrap: wrap;
@@ -503,7 +510,9 @@ h2 {
   display: grid;
   min-height: 3.25rem;
   min-width: 3.25rem;
-  max-width: 14rem;
+  /* 14rem is wider than a 320px viewport once text scaling doubles the
+     root size, so the cap must also respect the container. */
+  max-width: min(14rem, 100%);
   align-content: center;
   padding: 0.25rem 0.5rem;
   color: #182b4f;

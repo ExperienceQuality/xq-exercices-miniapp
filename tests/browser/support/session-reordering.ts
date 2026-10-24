@@ -768,6 +768,11 @@ export const edgeDragRevealAndDrop = async (
     placement: 'before' | 'after';
   },
 ): Promise<boolean> => {
+  // The autoscroll is rAF-driven and therefore fps-bound: software-rendered
+  // CI Chromium scrolls far slower per second than a local GPU-backed run,
+  // so the reveal budget must absorb several seconds of edge-hold, not just
+  // a fast local machine's.
+  const REVEAL_ATTEMPTS = 150;
   const dropPointVisible = async () => {
     const box = await dropOn.boundingBox();
     const viewport = page.viewportSize();
@@ -791,7 +796,7 @@ export const edgeDragRevealAndDrop = async (
         touchPoints: [{ x: start.x, y: start.y, id: 0 }],
       });
       let ok = false;
-      for (let attempt = 0; attempt < 60 && !ok; attempt += 1) {
+      for (let attempt = 0; attempt < REVEAL_ATTEMPTS && !ok; attempt += 1) {
         await session.send('Input.dispatchTouchEvent', {
           type: 'touchMove',
           touchPoints: [{ x: edge.x, y: edge.y, id: 0 }],
@@ -843,7 +848,7 @@ export const edgeDragRevealAndDrop = async (
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   let ok = false;
-  for (let attempt = 0; attempt < 60 && !ok; attempt += 1) {
+  for (let attempt = 0; attempt < REVEAL_ATTEMPTS && !ok; attempt += 1) {
     await page.mouse.move(edge.x, edge.y);
     ok = await dropPointVisible();
     if (!ok) await delay(60);
