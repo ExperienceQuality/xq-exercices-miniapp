@@ -306,6 +306,8 @@
           {error}
         </p>{/if}
       {#if screen === 'session' && routine && session}
+        {@const routineId = routine.id}
+        {@const sessionId = session.id}
         <SessionDetailScreen
           {routine}
           {session}
@@ -313,10 +315,14 @@
           onAddExercise={() => startExercise()}
           onEditExercise={(id) => startExercise(id)}
           onDeleteExercise={(id) => openConfirm({ kind: 'exercise', id })}
+          onReorderExercises={(exerciseIds) =>
+            controller.reorderExercises(routineId, sessionId, exerciseIds)}
+          {reorderPending}
           onRenameSession={() => openSessionEditor('rename')}
           onDeleteSession={() => openConfirm({ kind: 'session' })}
         />
       {:else if screen === 'routine' && routine}
+        {@const routineId = routine.id}
         <RoutineDetailScreen
           {routine}
           onBack={backToRoutines}
@@ -326,7 +332,7 @@
             void controller.snapshot().catch(() => {});
           }}
           onReorderSessions={(sessionIds) =>
-            controller.reorderSessions(routine!.id, sessionIds)}
+            controller.reorderSessions(routineId, sessionIds)}
           {reorderPending}
         />
       {:else}

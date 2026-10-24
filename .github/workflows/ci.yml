@@ -50,10 +50,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build
-      - run: npm run test:browser
+      # The browser lane runs in the Playwright noble (Ubuntu 24.04) image —
+      # the exact same environment locally via `npm run test:browser:docker`.
+      # npm ci, build, and browser install all happen inside the container.
+      - run: node scripts/test-browser-docker.mjs
       - if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

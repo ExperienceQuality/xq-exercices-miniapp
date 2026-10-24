@@ -195,6 +195,45 @@ export function addExercise(
   });
 }
 
+export function reorderExercises(
+  document: FitnessDocumentV2,
+  routineId: string,
+  sessionId: string,
+  exerciseIds: readonly string[],
+): FitnessDocumentV2 {
+  const routineIndex = routineAt(document, routineId);
+  const routine = document.routines[routineIndex]!;
+  const sessionIndex = sessionAt(routine, sessionId);
+  const session = routine.sessions[sessionIndex]!;
+  if (exerciseIds.length !== session.exercises.length) {
+    throw new FitnessError('validation', messages.invalidExerciseOrder);
+  }
+  const byId = new Map(session.exercises.map((item) => [item.id, item]));
+  const seen = new Set<string>();
+  for (const exerciseId of exerciseIds) {
+    if (seen.has(exerciseId) || !byId.has(exerciseId)) {
+      throw new FitnessError('validation', messages.invalidExerciseOrder);
+    }
+    seen.add(exerciseId);
+  }
+  if (
+    session.exercises.every((item, index) => item.id === exerciseIds[index])
+  ) {
+    return document;
+  }
+  return replaceRoutine(document, routineIndex, {
+    ...routine,
+    sessions: routine.sessions.map((item, index) =>
+      index === sessionIndex
+        ? {
+            ...item,
+            exercises: exerciseIds.map((id) => byId.get(id)!),
+          }
+        : item,
+    ),
+  });
+}
+
 export function editExercise(
   document: FitnessDocumentV2,
   routineId: string,

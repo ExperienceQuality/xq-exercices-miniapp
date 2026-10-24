@@ -7,6 +7,7 @@ import {
   renameSession,
   deleteSession,
   reorderSessions as reorderSessionsCommand,
+  reorderExercises as reorderExercisesCommand,
   addExercise,
   editExercise,
   deleteExercise,
@@ -213,6 +214,42 @@ export class FitnessController {
     } catch (error) {
       // commit() already surfaced repository failures; validation, missing
       // routine, and other command-time errors need the same treatment.
+      this.error = safeError(error);
+      this.notify();
+      throw error;
+    } finally {
+      this.reorderPending = false;
+      this.notify();
+    }
+  }
+  async reorderExercises(
+    routineId: string,
+    sessionId: string,
+    exerciseIds: readonly string[],
+  ): Promise<void> {
+    // Shares the global reorder gate with reorderSessions: a second
+    // reorder on either list while a save is pending is suppressed.
+    if (this.reorderPending) return;
+    this.reorderPending = true;
+    this.notify();
+    // Snapshot the caller's array: the candidate is built when the queue
+    // reaches it, so it must not observe later caller-side edits.
+    const queuedIds = [...exerciseIds];
+    try {
+      await this.enqueueMutation(async () => {
+        await this.waitForLoad();
+        const candidate = reorderExercisesCommand(
+          this.document,
+          routineId,
+          sessionId,
+          queuedIds,
+        );
+        if (candidate === this.document) return;
+        await this.commit(candidate);
+      });
+    } catch (error) {
+      // commit() already surfaced repository failures; validation, missing
+      // parents, and other command-time errors need the same treatment.
       this.error = safeError(error);
       this.notify();
       throw error;

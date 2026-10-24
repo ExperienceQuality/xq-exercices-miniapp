@@ -7,6 +7,7 @@ import {
   deleteSession,
   editExercise,
   renameSession,
+  reorderExercises,
 } from './commands';
 import { FitnessError } from './errors';
 import { emptyFitnessDocument, type FitnessDocumentV2 } from './model';
@@ -335,5 +336,246 @@ describe('snapshots', () => {
       // Deliberately crosses the defensive runtime boundary.
       captureRoutineSnapshot(undefined as never, ids('x'), clock()),
     ).toThrow('routine no longer exists');
+  });
+});
+
+describe('exercise reordering', () => {
+  function withExercises(): FitnessDocumentV2 {
+    let state = createRoutine(emptyFitnessDocument(), { name: 'R' }, ids('r'));
+    state = addSession(state, 'r', ' Upper ', ids('s1'));
+    state = addSession(state, 'r', 'Lower', ids('s2'));
+    state = addExercise(
+      state,
+      'r',
+      's1',
+      { name: ' Press ', sets: 3, repetitions: 10, weightKg: 40 },
+      ids('e1'),
+    );
+    state = addExercise(
+      state,
+      'r',
+      's1',
+      { name: 'Row', sets: 3, repetitions: 12, weightKg: 35 },
+      ids('e2'),
+    );
+    state = addExercise(
+      state,
+      'r',
+      's1',
+      { name: 'Curl', sets: 4, repetitions: 8, weightKg: 12 },
+      ids('e3'),
+    );
+    state = addExercise(
+      state,
+      'r',
+      's2',
+      { name: 'Squat', sets: 5, repetitions: 5, weightKg: 60 },
+      ids('x1'),
+    );
+    state = createRoutine(state, { name: 'Other' }, ids('r2'));
+    state = addSession(state, 'r2', 'Full', ids('t1'));
+    state = addExercise(
+      state,
+      'r2',
+      't1',
+      { name: 'Plank', sets: 1, repetitions: 1, weightKg: 0 },
+      ids('y1'),
+    );
+    return state;
+  }
+
+  function sessionOf(
+    state: FitnessDocumentV2,
+    routineId: string,
+    sessionId: string,
+  ) {
+    return state.routines
+      .find((routine) => routine.id === routineId)!
+      .sessions.find((session) => session.id === sessionId)!;
+  }
+
+  // FIT-101: a valid permutation commits exactly and replaces only the
+  // target exercises array — every other field and parent stays shared.
+  it('commits an exact permutation into the target array only', () => {
+    const state = withExercises();
+    const before = sessionOf(state, 'r', 's1').exercises;
+    const result = reorderExercises(state, 'r', 's1', ['e3', 'e1', 'e2']);
+    const moved = sessionOf(result, 'r', 's1');
+    expect(moved.exercises.map((item) => item.id)).toEqual(['e3', 'e1', 'e2']);
+    // The same exercise objects move with every field intact.
+    expect(moved.exercises[0]).toBe(before[2]);
+    expect(moved.exercises[1]).toBe(before[0]);
+    expect(moved.exercises[2]).toBe(before[1]);
+    // Other sessions and routines keep their identity and contents.
+    expect(sessionOf(result, 'r', 's2')).toBe(sessionOf(state, 'r', 's2'));
+    expect(result.routines[1]).toBe(state.routines[1]);
+    // The input document is not mutated.
+    expect(
+      sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
+    ).toEqual(['e1', 'e2', 'e3']);
+  });
+
+  // FIT-102: malformed permutations — omitted, extra, duplicate, unknown,
+  // foreign-session, and empty inputs — reject with 'validation' and write
+  // nothing.
+  it.each([
+    ['omitted', ['e1', 'e2']],
+    ['extra', ['e1', 'e2', 'e3', 'e4']],
+    ['duplicate', ['e1', 'e2', 'e2']],
+    ['unknown', ['e1', 'e2', 'nope']],
+    ['foreign', ['e1', 'e2', 'x1']],
+    ['empty', []],
+  ])('rejects a %s permutation without writing', (_label, exerciseIds) => {
+    const state = withExercises();
+    const call = () => reorderExercises(state, 'r', 's1', exerciseIds);
+    expect(call).toThrow(FitnessError);
+    expect(call).toThrow(
+      'Exercise order must include every exercise exactly once.',
+    );
+    try {
+      call();
+    } catch (error) {
+      expect((error as FitnessError).code).toBe('validation');
+    }
+    expect(
+      sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
+    ).toEqual(['e1', 'e2', 'e3']);
+  });
+
+  // FIT-102: missing routine/session parents reject with the existing
+  // missing-* codes before any write; a session from another routine is
+  // still missing in the target routine.
+  it('reports missing parents before validating the permutation', () => {
+    const state = withExercises();
+    expect(() =>
+      reorderExercises(state, 'missing', 's1', ['e1', 'e2', 'e3']),
+    ).toThrow('The routine no longer exists.');
+    expect(() =>
+      reorderExercises(state, 'r', 'missing', ['e1', 'e2', 'e3']),
+    ).toThrow('The training session no longer exists.');
+    expect(() =>
+      reorderExercises(state, 'r2', 's1', ['e1', 'e2', 'e3']),
+    ).toThrow('The training session no longer exists.');
+  });
+
+  // FIT-103: identical, singleton, and empty orders return the original
+  // document — no write occurs.
+  it('returns the original document for identical, empty, and single orders', () => {
+    const state = withExercises();
+    expect(reorderExercises(state, 'r', 's1', ['e1', 'e2', 'e3'])).toBe(state);
+    expect(reorderExercises(state, 'r', 's2', ['x1'])).toBe(state);
+    let empty = createRoutine(emptyFitnessDocument(), { name: 'E' }, ids('r'));
+    empty = addSession(empty, 'r', 'None', ids('s0'));
+    expect(reorderExercises(empty, 'r', 's0', [])).toBe(empty);
+  });
+
+  // FIT-103: after a reorder, add appends last, edit preserves position and
+  // id, and delete preserves the relative order of what remains.
+  it('appends after reorder, preserves position on edit, and order on delete', () => {
+    let state = reorderExercises(withExercises(), 'r', 's1', [
+      'e3',
+      'e1',
+      'e2',
+    ]);
+    state = addExercise(
+      state,
+      'r',
+      's1',
+      { name: 'Fly', sets: 3, repetitions: 12, weightKg: 8 },
+      ids('e4'),
+    );
+    expect(
+      sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
+    ).toEqual(['e3', 'e1', 'e2', 'e4']);
+    state = editExercise(state, 'r', 's1', 'e1', {
+      name: 'Press Max',
+      sets: 4,
+      repetitions: 6,
+      weightKg: 50,
+    });
+    const edited = sessionOf(state, 'r', 's1').exercises;
+    expect(edited.map((item) => item.id)).toEqual(['e3', 'e1', 'e2', 'e4']);
+    expect(edited[1]).toMatchObject({
+      id: 'e1',
+      name: 'Press Max',
+      sets: 4,
+      repetitions: 6,
+      weightKg: 50,
+    });
+    state = deleteExercise(state, 'r', 's1', 'e3');
+    expect(
+      sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
+    ).toEqual(['e1', 'e2', 'e4']);
+  });
+
+  // FIT-104: same-named exercises resolve by stable id — the correct item
+  // moves with its own values, never matched by name.
+  it('reorders same-named exercises by stable identity', () => {
+    let state = createRoutine(emptyFitnessDocument(), { name: 'R' }, ids('r'));
+    state = addSession(state, 'r', 'S', ids('s1'));
+    state = addExercise(
+      state,
+      'r',
+      's1',
+      { name: 'Press', sets: 3, repetitions: 10, weightKg: 40 },
+      ids('p1'),
+    );
+    state = addExercise(
+      state,
+      'r',
+      's1',
+      { name: 'press', sets: 5, repetitions: 5, weightKg: 60 },
+      ids('p2'),
+    );
+    const result = reorderExercises(state, 'r', 's1', ['p2', 'p1']);
+    const moved = sessionOf(result, 'r', 's1').exercises;
+    expect(moved.map((item) => item.id)).toEqual(['p2', 'p1']);
+    expect(moved[0]).toMatchObject({ name: 'press', weightKg: 60 });
+    expect(moved[1]).toMatchObject({ name: 'Press', weightKg: 40 });
+  });
+
+  // FIT-111: snapshots stay byte-identical and aggregate folded keys,
+  // maxima, and classification are unchanged — except the documented
+  // first-encounter casing caveat for same-named exercises.
+  it('leaves snapshots and aggregate semantics unchanged except casing', () => {
+    let state = withExercises();
+    state = captureSnapshot(state, 'r', ids('p1'), clock());
+    const before = aggregateExercises(state.routines[0]!);
+    const result = reorderExercises(state, 'r', 's1', ['e3', 'e1', 'e2']);
+    expect(result.routines[0]!.snapshots).toBe(state.routines[0]!.snapshots);
+    expect(aggregateExercises(result.routines[0]!)).toEqual(before);
+
+    let dup = createRoutine(emptyFitnessDocument(), { name: 'D' }, ids('r'));
+    dup = addSession(dup, 'r', 'S', ids('s1'));
+    dup = addExercise(
+      dup,
+      'r',
+      's1',
+      { name: 'press', sets: 3, repetitions: 10, weightKg: 40 },
+      ids('d1'),
+    );
+    dup = addExercise(
+      dup,
+      'r',
+      's1',
+      { name: 'PRESS', sets: 5, repetitions: 5, weightKg: 60 },
+      ids('d2'),
+    );
+    const firstPass = aggregateExercises(dup.routines[0]!)[0]!;
+    const reordered = reorderExercises(dup, 'r', 's1', ['d2', 'd1']);
+    const secondPass = aggregateExercises(reordered.routines[0]!)[0]!;
+    expect(secondPass.foldedName).toBe(firstPass.foldedName);
+    expect(firstPass).toMatchObject({
+      name: 'press',
+      sets: 5,
+      repetitions: 10,
+      weightKg: 60,
+    });
+    expect(secondPass).toMatchObject({
+      name: 'PRESS',
+      sets: 5,
+      repetitions: 10,
+      weightKg: 60,
+    });
   });
 });
