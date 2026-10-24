@@ -7,16 +7,34 @@ import {
 
 /**
  * Support helpers for the session reordering acceptance spec
- * (docs/session-reordering-acceptance.md, SRO-01..SRO-24 => FIT-053..076).
+ * (docs/session-reordering-acceptance.md, SRO-01..SRO-24 => FIT-053..076)
+ * and the roomier-ui reorder specs (docs/roomier-ui-acceptance.md,
+ * RUI-AC-11..24 => FIT-087..100).
  *
- * DOM contract (lead-authored, stable):
- * - ul[aria-label="Training sessions"] lists sessions.
- * - Each row is li[data-session-id] containing the navigation .list-button
- *   plus sibling controls: a drag handle (aria-label "Reorder ${name}") and
- *   move buttons (aria-label "Move ${name} up" / "Move ${name} down").
+ * DOM contract (lead-frozen at T0, generic across both lists):
+ * - ul[aria-label="Training sessions"] lists sessions; ul[aria-label=
+ *   "Exercises"] lists exercises inside a session.
+ * - Each row is li[data-session-id] / li[data-exercise-id].
+ * - The ONLY reorder affordance is the grip button (aria-label
+ *   "Reorder ${name}"): a 28px SVG in a >=52px target. There are NO
+ *   visible "Move ${name} up/down" buttons.
+ * - ArrowUp/ArrowDown on the focused grip move one position directly;
+ *   tap/click/Enter/Space on the grip opens an anchored menu with
+ *   "Move earlier" / "Move later" items (boundaries disabled).
  * - The list sets aria-busy="true" while a reorder save is pending and a
- *   polite live region (role=status) announces the result.
+ *   polite live region (role=status) announces "{name} moved to position
+ *   {n}." and failures.
+ * - Exercise rows additionally render Edit ${name} / Delete ${name} on a
+ *   lower row inside the same li.
  */
+
+export interface ExerciseRecordShape {
+  id: string;
+  name: string;
+  sets: number;
+  repetitions: number;
+  weightKg: number;
+}
 
 export interface CommittedFitnessRecord {
   storageRevision: number;
@@ -30,26 +48,168 @@ export interface CommittedFitnessRecord {
         id: string;
         name: string;
         order: number;
-        exercises: unknown[];
+        exercises: ExerciseRecordShape[];
       }>;
       snapshots?: unknown[];
     }>;
   };
 }
 
-export const sessionList = (page: Page): Locator =>
-  page.getByRole('list', { name: 'Training sessions' });
+/* ------------------------------------------------------------------ */
+/* Generic list plumbing                                               */
+/* ------------------------------------------------------------------ */
 
-export const sessionRows = (page: Page): Locator =>
-  sessionList(page).locator('li[data-session-id]');
+export type ListKind = 'session' | 'exercise';
+
+const listLabels: Record<ListKind, string> = {
+  session: 'Training sessions',
+  exercise: 'Exercises',
+};
+
+const rowAttributes: Record<ListKind, string> = {
+  session: 'data-session-id',
+  exercise: 'data-exercise-id',
+};
+
+export const reorderableList = (page: Page, kind: ListKind): Locator =>
+  page.getByRole('list', { name: listLabels[kind] });
+
+export const itemRows = (page: Page, kind: ListKind): Locator =>
+  reorderableList(page, kind).locator(`li[${rowAttributes[kind]}]`);
+
+export const itemRowById = (
+  page: Page,
+  kind: ListKind,
+  itemId: string,
+): Locator =>
+  reorderableList(page, kind).locator(`li[${rowAttributes[kind]}="${itemId}"]`);
+
+export const itemRowIds = async (
+  page: Page,
+  kind: ListKind,
+): Promise<string[]> =>
+  itemRows(page, kind).evaluateAll(
+    (rows, attribute) => rows.map((row) => row.getAttribute(attribute) ?? ''),
+    rowAttributes[kind],
+  );
+
+/** The 52px grip is the only reorder control in either list. */
+export const reorderGrip = (
+  page: Page,
+  kind: ListKind,
+  name: string,
+): Locator =>
+  reorderableList(page, kind).getByRole('button', {
+    name: `Reorder ${name}`,
+    exact: true,
+  });
+
+/** Grip inside one specific row — safe with duplicate item names. */
+export const rowReorderGrip = (
+  page: Page,
+  kind: ListKind,
+  itemId: string,
+  name: string,
+): Locator =>
+  itemRowById(page, kind, itemId).getByRole('button', {
+    name: `Reorder ${name}`,
+    exact: true,
+  });
+
+/** Every reorder grip in a list. */
+export const reorderControls = (
+  page: Page,
+  kind: ListKind = 'session',
+): Locator =>
+  reorderableList(page, kind).getByRole('button', {
+    name: /^Reorder /,
+    exact: false,
+  });
+
+/**
+ * The superseded SR-03 affordance must not exist anywhere: no visible
+ * "Move {name} up/down" buttons may render.
+ */
+export const legacyMoveButtons = (page: Page): Locator =>
+  page.getByRole('button', { name: /^Move .+ (up|down)$/ });
+
+export const reorderStatus = (page: Page): Locator => page.getByRole('status');
+
+/* ------------------------------------------------------------------ */
+/* Move menu ("Move earlier" / "Move later")                           */
+/* ------------------------------------------------------------------ */
+
+/** A menu item may be role=menuitem or a plain button inside the menu. */
+const menuItem = (page: Page, name: 'Move earlier' | 'Move later'): Locator =>
+  page
+    .getByRole('menuitem', { name, exact: true })
+    .or(page.getByRole('button', { name, exact: true }));
+
+export const moveEarlierItem = (page: Page): Locator =>
+  menuItem(page, 'Move earlier');
+export const moveLaterItem = (page: Page): Locator =>
+  menuItem(page, 'Move later');
+
+export const moveMenuOpen = async (page: Page): Promise<boolean> =>
+  (await moveEarlierItem(page).count()) > 0 ||
+  (await moveLaterItem(page).count()) > 0;
+
+/**
+ * Activates a grip without dragging (a plain click never crosses the 6px
+ * threshold) and waits for the anchored move menu to appear.
+ */
+export const openMoveMenu = async (
+  page: Page,
+  grip: Locator,
+): Promise<void> => {
+  await grip.click();
+  await expect(
+    moveEarlierItem(page).or(moveLaterItem(page)).first(),
+  ).toBeVisible();
+};
+
+/**
+ * Moves an item one position through the pointer-accessible move menu —
+ * the WCAG 2.5.7 non-drag alternative that rides the same reorder
+ * pipeline as drag and arrow keys.
+ */
+export const moveViaMenu = async (
+  page: Page,
+  grip: Locator,
+  direction: 'earlier' | 'later',
+): Promise<void> => {
+  await openMoveMenu(page, grip);
+  const item = direction === 'earlier' ? moveEarlierItem : moveLaterItem;
+  await item(page).click();
+};
+
+/**
+ * Moves an item one position with ArrowUp/ArrowDown pressed on the
+ * focused grip — the direct keyboard path (no pickup mode).
+ */
+export const moveViaArrowKey = async (
+  page: Page,
+  grip: Locator,
+  direction: 'earlier' | 'later',
+): Promise<void> => {
+  await grip.focus();
+  await page.keyboard.press(direction === 'earlier' ? 'ArrowUp' : 'ArrowDown');
+};
+
+/* ------------------------------------------------------------------ */
+/* Session-list conveniences (kept names from the SRO suite)           */
+/* ------------------------------------------------------------------ */
+
+export const sessionList = (page: Page): Locator =>
+  reorderableList(page, 'session');
+
+export const sessionRows = (page: Page): Locator => itemRows(page, 'session');
 
 export const sessionRowById = (page: Page, sessionId: string): Locator =>
-  sessionList(page).locator(`li[data-session-id="${sessionId}"]`);
+  itemRowById(page, 'session', sessionId);
 
 export const sessionRowIds = async (page: Page): Promise<string[]> =>
-  sessionRows(page).evaluateAll((rows) =>
-    rows.map((row) => row.getAttribute('data-session-id') ?? ''),
-  );
+  itemRowIds(page, 'session');
 
 export const sessionRowNames = async (page: Page): Promise<string[]> =>
   sessionRows(page)
@@ -59,49 +219,13 @@ export const sessionRowNames = async (page: Page): Promise<string[]> =>
     );
 
 export const reorderHandle = (page: Page, name: string): Locator =>
-  sessionList(page).getByRole('button', {
-    name: `Reorder ${name}`,
-    exact: true,
-  });
+  reorderGrip(page, 'session', name);
 
-export const moveUpButton = (page: Page, name: string): Locator =>
-  sessionList(page).getByRole('button', {
-    name: `Move ${name} up`,
-    exact: true,
-  });
-
-export const moveDownButton = (page: Page, name: string): Locator =>
-  sessionList(page).getByRole('button', {
-    name: `Move ${name} down`,
-    exact: true,
-  });
-
-export const rowMoveUpButton = (
+export const rowReorderHandle = (
   page: Page,
   sessionId: string,
   name: string,
-): Locator =>
-  sessionRowById(page, sessionId).getByRole('button', {
-    name: `Move ${name} up`,
-    exact: true,
-  });
-
-export const rowMoveDownButton = (
-  page: Page,
-  sessionId: string,
-  name: string,
-): Locator =>
-  sessionRowById(page, sessionId).getByRole('button', {
-    name: `Move ${name} down`,
-    exact: true,
-  });
-
-export const reorderControls = (page: Page): Locator =>
-  sessionList(page).getByRole('button', {
-    name: /^(Reorder |Move .+ (up|down)$)/,
-  });
-
-export const reorderStatus = (page: Page): Locator => page.getByRole('status');
+): Locator => rowReorderGrip(page, 'session', sessionId, name);
 
 export const openSessionRow = async (
   page: Page,
@@ -115,6 +239,53 @@ export const openSessionRow = async (
   await expect(button).toHaveCount(1);
   await button.click();
 };
+
+/* ------------------------------------------------------------------ */
+/* Exercise-list conveniences                                          */
+/* ------------------------------------------------------------------ */
+
+export const exerciseList = (page: Page): Locator =>
+  reorderableList(page, 'exercise');
+
+export const exerciseRows = (page: Page): Locator => itemRows(page, 'exercise');
+
+export const exerciseRowById = (page: Page, exerciseId: string): Locator =>
+  itemRowById(page, 'exercise', exerciseId);
+
+export const exerciseRowIds = async (page: Page): Promise<string[]> =>
+  itemRowIds(page, 'exercise');
+
+export const exerciseRowNames = async (page: Page): Promise<string[]> =>
+  exerciseRows(page)
+    .locator('strong')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => node.textContent?.trim() ?? ''),
+    );
+
+export const exerciseReorderHandle = (page: Page, name: string): Locator =>
+  reorderGrip(page, 'exercise', name);
+
+export const exerciseRowReorderHandle = (
+  page: Page,
+  exerciseId: string,
+  name: string,
+): Locator => rowReorderGrip(page, 'exercise', exerciseId, name);
+
+/** Exercise-row Edit/Delete controls, scoped to one row by id. */
+export const exerciseRowAction = (
+  page: Page,
+  exerciseId: string,
+  action: 'Edit' | 'Delete',
+  name: string,
+): Locator =>
+  exerciseRowById(page, exerciseId).getByRole('button', {
+    name: `${action} ${name}`,
+    exact: true,
+  });
+
+/* ------------------------------------------------------------------ */
+/* Committed-state reads                                               */
+/* ------------------------------------------------------------------ */
 
 export const readPrimaryRecord = async (
   page: Page,
@@ -152,6 +323,15 @@ export const committedRoutine = async (page: Page, routineId: string) =>
     (routine) => routine.id === routineId,
   );
 
+export const committedSession = async (
+  page: Page,
+  routineId: string,
+  sessionId: string,
+) =>
+  (await committedRoutine(page, routineId))?.sessions.find(
+    (session) => session.id === sessionId,
+  );
+
 export const committedSessionIds = async (
   page: Page,
   routineId: string,
@@ -159,6 +339,16 @@ export const committedSessionIds = async (
   [...((await committedRoutine(page, routineId))?.sessions ?? [])]
     .sort((a, b) => a.order - b.order)
     .map((session) => session.id);
+
+/** Exercise order is the literal `session.exercises` array position. */
+export const committedExerciseIds = async (
+  page: Page,
+  routineId: string,
+  sessionId: string,
+): Promise<string[]> =>
+  ((await committedSession(page, routineId, sessionId))?.exercises ?? []).map(
+    (exercise) => exercise.id,
+  );
 
 export const committedRevision = async (page: Page): Promise<number> =>
   (await readPrimaryRecord(page))?.storageRevision ?? -1;
@@ -181,11 +371,50 @@ export const sessionIdsByNames = async (
 ): Promise<string[]> => {
   const routine = await committedRoutine(page, routineId);
   if (!routine) throw new Error(`Routine ${routineId} not committed.`);
-  return names.map((name, index) => {
+  // Duplicate names resolve to successive occurrences — a per-name
+  // occurrence counter, never a fallback to the first match.
+  const used = new Map<string, number>();
+  return names.map((name) => {
     const matches = routine.sessions.filter((session) => session.name === name);
-    const match = matches[index] ?? matches[0];
+    const occurrence = used.get(name) ?? 0;
+    used.set(name, occurrence + 1);
+    const match = matches[occurrence];
     if (!match)
-      throw new Error(`Session ${name} not committed to ${routineId}.`);
+      throw new Error(
+        `Session ${name} (occurrence ${occurrence}) not committed to ${routineId}.`,
+      );
+    return match.id;
+  });
+};
+
+export const sessionIdByName = async (
+  page: Page,
+  routineId: string,
+  name: string,
+): Promise<string> => (await sessionIdsByNames(page, routineId, [name]))[0]!;
+
+/** Resolve exercise ids by name inside one session; duplicates map by
+ *  successive per-name occurrence — never a fallback to the first match. */
+export const exerciseIdsByNames = async (
+  page: Page,
+  routineId: string,
+  sessionId: string,
+  names: string[],
+): Promise<string[]> => {
+  const session = await committedSession(page, routineId, sessionId);
+  if (!session) throw new Error(`Session ${sessionId} not committed.`);
+  const used = new Map<string, number>();
+  return names.map((name) => {
+    const matches = session.exercises.filter(
+      (exercise) => exercise.name === name,
+    );
+    const occurrence = used.get(name) ?? 0;
+    used.set(name, occurrence + 1);
+    const match = matches[occurrence];
+    if (!match)
+      throw new Error(
+        `Exercise ${name} (occurrence ${occurrence}) not committed to ${sessionId}.`,
+      );
     return match.id;
   });
 };
@@ -212,6 +441,34 @@ export const waitForRenderedOrder = async (
     })
     .toEqual(sessionIds);
 };
+
+export const waitForCommittedExerciseOrder = async (
+  page: Page,
+  routineId: string,
+  sessionId: string,
+  exerciseIds: string[],
+): Promise<void> => {
+  await expect
+    .poll(() => committedExerciseIds(page, routineId, sessionId), {
+      message: `Committed exercise order for ${sessionId} did not become ${exerciseIds.join(',')}`,
+    })
+    .toEqual(exerciseIds);
+};
+
+export const waitForRenderedExerciseOrder = async (
+  page: Page,
+  exerciseIds: string[],
+): Promise<void> => {
+  await expect
+    .poll(() => exerciseRowIds(page), {
+      message: `Rendered exercise order did not become ${exerciseIds.join(',')}`,
+    })
+    .toEqual(exerciseIds);
+};
+
+/* ------------------------------------------------------------------ */
+/* Trusted input: mouse drags, CDP touch, native scroll, autoscroll    */
+/* ------------------------------------------------------------------ */
 
 /** Center point of a locator; throws when the element is not rendered. */
 export const elementCenter = async (locator: Locator) => {
@@ -243,6 +500,9 @@ export const mouseDrag = async (
   from: Locator,
   to: { x: number; y: number },
 ): Promise<void> => {
+  // Rows can sit below the fold on short viewports; bring the grip into view
+  // before measuring its center or the trusted input starts offscreen.
+  await from.scrollIntoViewIfNeeded();
   const start = await centerOf(from);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -265,6 +525,9 @@ export const dragHandleToRow = async (
   targetRow: Locator,
   placement: 'before' | 'after' = 'before',
 ): Promise<void> => {
+  // Scroll the grip into view FIRST, then measure the drop point — otherwise
+  // the coordinate is stale the moment scrollIntoViewIfNeeded shifts layout.
+  await handle.scrollIntoViewIfNeeded();
   await mouseDrag(page, handle, await rowDropPoint(targetRow, placement));
   await page.mouse.up();
 };
@@ -283,6 +546,7 @@ export const touchDrag = async (
   from: Locator,
   to: { x: number; y: number },
 ): Promise<void> => {
+  await from.scrollIntoViewIfNeeded();
   const start = await centerOf(from);
   const session = await context.newCDPSession(page);
   try {
@@ -411,6 +675,7 @@ export const holdDrag = async (
   useTouch: boolean,
   from: Locator,
 ): Promise<HeldGesture> => {
+  await from.scrollIntoViewIfNeeded();
   const start = await centerOf(from);
   if (useTouch) {
     const session = await context.newCDPSession(page);
@@ -516,6 +781,7 @@ export const edgeDragRevealAndDrop = async (
       midX <= viewport.width
     );
   };
+  await handle.scrollIntoViewIfNeeded();
   const start = await centerOf(handle);
   if (useTouch) {
     const session = await context.newCDPSession(page);
@@ -598,6 +864,10 @@ export const edgeDragRevealAndDrop = async (
   await page.mouse.up();
   return true;
 };
+
+/* ------------------------------------------------------------------ */
+/* Storage fault gates (reused for both lists' reorder saves)          */
+/* ------------------------------------------------------------------ */
 
 /** Aborts the next readwrite transaction once; used to fail a reorder save. */
 export const abortNextReadwriteTransaction = () => {
@@ -752,6 +1022,10 @@ export const releaseReorderSave = async (page: Page): Promise<void> => {
   });
 };
 
+/* ------------------------------------------------------------------ */
+/* Seed document builders                                              */
+/* ------------------------------------------------------------------ */
+
 /**
  * Builds a schema-v2 document with one routine of sequential sessions for
  * seedRecords. `notes` is intentionally omitted: an empty string fails the
@@ -771,9 +1045,47 @@ export const buildRoutineDocument = (
         id: `${routineId}-s${String(index + 1).padStart(3, '0')}`,
         name,
         order: index + 1,
-        exercises: [],
+        exercises: [] as ExerciseRecordShape[],
       })),
-      snapshots: [],
+      snapshots: [] as unknown[],
+    },
+  ],
+});
+
+/**
+ * Builds a schema-v2 document with one routine containing ONE session that
+ * holds `exerciseNames` in array order — the canonical exercise ordering.
+ * Exercise objects carry real sets/reps/weightKg values so rows render
+ * their full metadata line.
+ */
+export const buildExerciseSessionDocument = (
+  routineId: string,
+  routineName: string,
+  sessionId: string,
+  sessionName: string,
+  exerciseNames: string[],
+  options: { order?: number } = {},
+) => ({
+  schemaVersion: 2,
+  routines: [
+    {
+      id: routineId,
+      name: routineName,
+      sessions: [
+        {
+          id: sessionId,
+          name: sessionName,
+          order: options.order ?? 1,
+          exercises: exerciseNames.map((name, index) => ({
+            id: `${sessionId}-e${String(index + 1).padStart(3, '0')}`,
+            name,
+            sets: 3 + (index % 3),
+            repetitions: 8 + index,
+            weightKg: 20 + index * 5,
+          })),
+        },
+      ],
+      snapshots: [] as unknown[],
     },
   ],
 });
