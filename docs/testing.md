@@ -18,11 +18,25 @@ Two lanes plus traceability, all enforced in CI:
 ## Commands
 
 ```sh
-npm run test:unit          # Vitest + coverage (jsdom)
-npm run test:traceability  # FIT-001…FIT-111 reference enforcement
-npm run test:browser       # playwright test (webServer auto-starts preview)
-npm run test:no-only       # part of `npm run lint`; blocks .only
+npm run test:unit            # Vitest + coverage (jsdom)
+npm run test:traceability    # FIT-001…FIT-111 reference enforcement
+npm run test:browser:docker  # canonical lane — CI-identical Linux container
+npm run test:browser         # playwright test, native (webServer auto-starts preview)
+npm run test:no-only         # part of `npm run lint`; blocks .only
 ```
+
+**Canonical environment.** CI runs the browser lane inside the official
+Playwright `noble` (Ubuntu 24.04) image pinned to the `@playwright/test`
+version in `package.json` via `scripts/test-browser-docker.mjs`. Run the
+same command locally (`npm run test:browser:docker`, requires Docker) so
+local results match CI exactly: font metrics and rendering speed differ
+between macOS and Linux, and layout- or timing-sensitive assertions can
+pass natively on a Mac while failing in CI. The container installs its own
+Linux `node_modules` on a tmpfs mount — the host install is untouched —
+then builds and runs `playwright test` with `CI=true`. Extra args pass
+through (`npm run test:browser:docker -- --grep RUI-AC-06`).
+`npx playwright test` natively remains useful for quick iteration,
+`--ui`/`--debug`, and IDE integration, but is not authoritative.
 
 ## Coverage gates (vitest.config.ts, V8)
 

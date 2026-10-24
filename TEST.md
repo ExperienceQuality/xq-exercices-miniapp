@@ -14,13 +14,19 @@ How to run and write tests in this repo. For the authoritative spec, see
 ## Commands
 
 ```sh
-npm run test:unit           # Vitest run with V8 coverage thresholds
-npm run test:browser        # playwright test (auto-starts vite preview on :4173)
-npm run test:traceability   # FIT-NNN reference enforcement
-npm run test:no-only        # blocks .only (also runs inside `npm run lint`)
+npm run test:unit            # Vitest run with V8 coverage thresholds
+npm run test:browser:docker  # canonical browser run — same Linux image as CI
+npm run test:browser         # playwright test, native (auto-starts vite preview on :4173)
+npm run test:traceability    # FIT-NNN reference enforcement
+npm run test:no-only         # blocks .only (also runs inside `npm run lint`)
 ```
 
-One-time setup for the browser lane: `npx playwright install chromium`.
+One-time setup for the native browser lane: `npx playwright install chromium`.
+The Docker lane needs no browser install — the image ships one — but needs
+Docker running. It uses the CI-identical Ubuntu 24.04 Playwright image, so
+prefer it when verifying layout- or timing-sensitive assertions; native
+macOS results can differ from CI. Pass Playwright args after `--`, e.g.
+`npm run test:browser:docker -- --project=320x568-touch --grep RUI-AC-06`.
 
 ## Unit tests
 

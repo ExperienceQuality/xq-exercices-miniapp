@@ -18,7 +18,8 @@
     "build": "vite build",
     "preview:test": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "start": "node server.mjs",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:browser:docker": "node scripts/test-browser-docker.mjs"
   },
   "dependencies": {
     "express": "^5.3.0",
