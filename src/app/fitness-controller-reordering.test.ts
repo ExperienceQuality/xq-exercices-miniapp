@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FitnessController } from './fitness-controller';
 import type { FitnessDependencies } from './dependencies';
 import type { FitnessDocumentV2 } from '../fitness/domain/model';
+import { applyMutation } from '../fitness/domain/mutations';
 
 function dependencies(
   document: FitnessDocumentV2 = { schemaVersion: 2, routines: [] },
@@ -14,8 +15,8 @@ function dependencies(
         storageRevision: 0,
         recovered: false,
       })),
-      commit: vi.fn(async (_revision, candidate) => {
-        current = candidate;
+      apply: vi.fn(async (_revision, mutation) => {
+        current = applyMutation(current, mutation);
         return { storageRevision: 1 };
       }),
     },
@@ -30,8 +31,8 @@ function dependencies(
   };
 }
 
-const commitCalls = (deps: FitnessDependencies) =>
-  (deps.repository.commit as ReturnType<typeof vi.fn>).mock.calls;
+const applyCalls = (deps: FitnessDependencies) =>
+  (deps.repository.apply as ReturnType<typeof vi.fn>).mock.calls;
 
 async function controllerWithSessions(
   deps: FitnessDependencies,
@@ -51,16 +52,21 @@ describe('FitnessController session reordering', () => {
     const routineId = controller.routine!.id;
     const [a, b, c] = controller.routine!.sessions.map((session) => session.id);
     // FIT-075: a no-op reorder skips the repository write entirely.
-    const writesBefore = commitCalls(deps).length;
+    const writesBefore = applyCalls(deps).length;
     await controller.reorderSessions(routineId, [a!, b!, c!]);
-    expect(commitCalls(deps).length).toBe(writesBefore);
+    expect(applyCalls(deps).length).toBe(writesBefore);
     // FIT-053: an actual reorder writes once and publishes the new order.
     await controller.reorderSessions(routineId, [c!, a!, b!]);
     const sorted = [...controller.routine!.sessions].sort(
       (left, right) => left.order - right.order,
     );
     expect(sorted.map((session) => session.id)).toEqual([c, a, b]);
-    expect(commitCalls(deps).length).toBe(writesBefore + 1);
+    expect(applyCalls(deps).length).toBe(writesBefore + 1);
+    expect(applyCalls(deps).at(-1)![1]).toEqual({
+      kind: 'reorder-sessions',
+      routineId,
+      sessionIds: [c, a, b],
+    });
   });
 
   it('keeps the committed order and reports validation and conflict failures', async () => {
@@ -70,7 +76,7 @@ describe('FitnessController session reordering', () => {
     const ids = controller.routine!.sessions.map((session) => session.id);
     // FIT-054: a malformed permutation fails before any repository write
     // and surfaces through controller.error like other command failures.
-    const writesBefore = commitCalls(deps).length;
+    const writesBefore = applyCalls(deps).length;
     const notified: number[] = [];
     controller.subscribe(() => notified.push(1));
     await expect(
@@ -80,10 +86,10 @@ describe('FitnessController session reordering', () => {
       'Session order must include every session exactly once.',
     );
     expect(notified.length).toBeGreaterThan(0);
-    expect(commitCalls(deps).length).toBe(writesBefore);
+    expect(applyCalls(deps).length).toBe(writesBefore);
     // FIT-067: a storage conflict fails closed, preserves committed order,
     // and does not retry automatically.
-    deps.repository.commit = vi.fn(async () => {
+    deps.repository.apply = vi.fn(async () => {
       const { FitnessError, messages } =
         await import('../fitness/domain/errors');
       throw new FitnessError('storage-conflict', messages.conflict);
@@ -108,10 +114,10 @@ describe('FitnessController session reordering', () => {
     await controller.saveRoutine('Other', '');
     const firstRoutine = controller.document.routines[0]!;
     const ids = firstRoutine.sessions.map((session) => session.id);
-    const realCommit = deps.repository.commit;
-    deps.repository.commit = vi.fn(async (revision, candidate) => {
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
       await gate;
-      return realCommit(revision, candidate);
+      return realApply(revision, mutation);
     });
     controller.selectRoutine(controller.document.routines[1]!.id);
     const pendingSave = controller.reorderSessions(firstRoutine.id, [
@@ -123,18 +129,15 @@ describe('FitnessController session reordering', () => {
     await controller.reorderSessions(firstRoutine.id, ids);
     release();
     await pendingSave;
-    const reorderCommits = commitCalls(deps).filter(([, candidate]) => {
-      const routine = (candidate as FitnessDocumentV2).routines.find(
-        (item) => item.id === firstRoutine.id,
-      );
-      return (
-        [...routine!.sessions]
-          .sort((left, right) => left.order - right.order)
-          .map((session) => session.id)
-          .join(',') === `${ids[1]},${ids[0]}`
-      );
+    const reorders = applyCalls(deps).filter(
+      ([, mutation]) =>
+        (mutation as { kind: string }).kind === 'reorder-sessions',
+    );
+    expect(reorders).toHaveLength(1);
+    expect(reorders[0]![1]).toMatchObject({
+      routineId: firstRoutine.id,
+      sessionIds: [ids[1], ids[0]],
     });
-    expect(reorderCommits).toHaveLength(1);
     expect(controller.reorderPending).toBe(false);
     const reordered = controller.document.routines[0]!;
     expect(
@@ -154,11 +157,11 @@ describe('FitnessController session reordering', () => {
     const controller = await controllerWithSessions(deps, ['A', 'B']);
     const routineId = controller.routine!.id;
     const ids = controller.routine!.sessions.map((session) => session.id);
-    const realCommit = deps.repository.commit;
+    const realApply = deps.repository.apply;
     let gated = true;
-    deps.repository.commit = vi.fn(async (revision, candidate) => {
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
       if (gated) await gate;
-      return realCommit(revision, candidate);
+      return realApply(revision, mutation);
     });
     const unrelated = controller.renameSelectedSession('Renamed');
     const reorder = controller.reorderSessions(routineId, [ids[1]!, ids[0]!]);
@@ -180,7 +183,7 @@ describe('FitnessController session reordering', () => {
     const routineId = controller.routine!.id;
     const revisionBefore = controller.revision;
     const documentBefore = controller.document;
-    deps.repository.commit = vi.fn(async () => {
+    deps.repository.apply = vi.fn(async () => {
       throw new Error('disk full');
     });
     await expect(
@@ -195,7 +198,7 @@ describe('FitnessController session reordering', () => {
     expect(controller.error).toBe('disk full');
   });
 
-  // FIT-068: the queued candidate uses a snapshot of the caller's ids array.
+  // FIT-068: the queued mutation uses a snapshot of the caller's ids array.
   it('snapshots the sessionIds input before queueing the reorder', async () => {
     const deps = dependencies();
     let release!: () => void;
@@ -205,10 +208,10 @@ describe('FitnessController session reordering', () => {
     const controller = await controllerWithSessions(deps, ['A', 'B']);
     const routineId = controller.routine!.id;
     const [a, b] = controller.routine!.sessions.map((session) => session.id);
-    const realCommit = deps.repository.commit;
-    deps.repository.commit = vi.fn(async (revision, candidate) => {
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
       await gate;
-      return realCommit(revision, candidate);
+      return realApply(revision, mutation);
     });
     const sessionIds = [b!, a!];
     const pendingSave = controller.reorderSessions(routineId, sessionIds);

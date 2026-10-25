@@ -21,10 +21,10 @@ describe('session reordering', () => {
       emptyFitnessDocument(),
       { name: 'Split' },
       ids('r'),
-    );
-    state = addSession(state, 'r', 'Alpha', ids('a'));
-    state = addSession(state, 'r', 'Beta', ids('b'));
-    state = addSession(state, 'r', 'Gamma', ids('c'));
+    ).document;
+    state = addSession(state, 'r', 'Alpha', ids('a')).document;
+    state = addSession(state, 'r', 'Beta', ids('b')).document;
+    state = addSession(state, 'r', 'Gamma', ids('c')).document;
     return state;
   };
   const sortedIds = (state: FitnessDocumentV2, routineId = 'r') =>
@@ -36,7 +36,12 @@ describe('session reordering', () => {
   it('moves a session forward across multiple positions', () => {
     const state = threeSessions();
     const result = reorderSessions(state, 'r', ['c', 'a', 'b']);
-    expect(sortedIds(result)).toEqual(['c', 'a', 'b']);
+    expect(result.mutation).toEqual({
+      kind: 'reorder-sessions',
+      routineId: 'r',
+      sessionIds: ['c', 'a', 'b'],
+    });
+    expect(sortedIds(result.document)).toEqual(['c', 'a', 'b']);
     expect(state.routines[0]!.sessions.map((session) => session.order)).toEqual(
       [1, 2, 3],
     );
@@ -51,10 +56,10 @@ describe('session reordering', () => {
       'a',
       { name: 'Press', sets: 3, repetitions: 10, weightKg: 5 },
       ids('e1'),
-    );
+    ).document;
     const result = reorderSessions(state, 'r', ['b', 'c', 'a']);
-    expect(sortedIds(result)).toEqual(['b', 'c', 'a']);
-    const moved = result.routines[0]!.sessions.find(
+    expect(sortedIds(result.document)).toEqual(['b', 'c', 'a']);
+    const moved = result.document.routines[0]!.sessions.find(
       (session) => session.id === 'a',
     )!;
     expect(moved).toMatchObject({
@@ -78,8 +83,8 @@ describe('session reordering', () => {
     ['empty', []],
   ])('rejects a %s permutation without writing', (_label, sessionIds) => {
     let state = threeSessions();
-    state = createRoutine(state, { name: 'Other' }, ids('r2'));
-    state = addSession(state, 'r2', 'Elsewhere', ids('other-session'));
+    state = createRoutine(state, { name: 'Other' }, ids('r2')).document;
+    state = addSession(state, 'r2', 'Elsewhere', ids('other-session')).document;
     const call = () => reorderSessions(state, 'r', sessionIds);
     expect(call).toThrow(FitnessError);
     expect(call).toThrow(
@@ -103,30 +108,30 @@ describe('session reordering', () => {
   // FIT-075: a no-op returns the identical document reference.
   it('returns the original document for identical, empty, and single orders', () => {
     const state = threeSessions();
-    expect(reorderSessions(state, 'r', ['a', 'b', 'c'])).toBe(state);
+    expect(reorderSessions(state, 'r', ['a', 'b', 'c']).document).toBe(state);
     const single = createRoutine(
       emptyFitnessDocument(),
       { name: 'Solo' },
       ids('solo'),
-    );
-    const withOne = addSession(single, 'solo', 'Only', ids('s'));
-    expect(reorderSessions(withOne, 'solo', ['s'])).toBe(withOne);
+    ).document;
+    const withOne = addSession(single, 'solo', 'Only', ids('s')).document;
+    expect(reorderSessions(withOne, 'solo', ['s']).document).toBe(withOne);
     const empty = createRoutine(
       emptyFitnessDocument(),
       { name: 'Empty' },
       ids('r-empty'),
-    );
-    expect(reorderSessions(empty, 'r-empty', [])).toBe(empty);
+    ).document;
+    expect(reorderSessions(empty, 'r-empty', []).document).toBe(empty);
   });
 
   // FIT-073: noncontiguous existing order values remain valid input.
   it('accepts routines whose existing order values have gaps', () => {
     let state = threeSessions();
-    state = deleteSession(state, 'r', 'b');
+    state = deleteSession(state, 'r', 'b').document;
     const result = reorderSessions(state, 'r', ['c', 'a']);
-    expect(sortedIds(result)).toEqual(['c', 'a']);
+    expect(sortedIds(result.document)).toEqual(['c', 'a']);
     expect(
-      result.routines[0]!.sessions.map((session) => session.order),
+      result.document.routines[0]!.sessions.map((session) => session.order),
     ).toEqual([2, 1]);
   });
 
@@ -136,21 +141,21 @@ describe('session reordering', () => {
       emptyFitnessDocument(),
       { name: 'Same' },
       ids('r'),
-    );
-    state = addSession(state, 'r', 'Session 1', ids('a'));
-    state = addSession(state, 'r', 'Session 1', ids('b'));
+    ).document;
+    state = addSession(state, 'r', 'Session 1', ids('a')).document;
+    state = addSession(state, 'r', 'Session 1', ids('b')).document;
     const result = reorderSessions(state, 'r', ['b', 'a']);
-    expect(sortedIds(result)).toEqual(['b', 'a']);
+    expect(sortedIds(result.document)).toEqual(['b', 'a']);
   });
 
   // FIT-055: other routines are untouched and input documents stay immutable.
   it('leaves other routines and the input document unchanged', () => {
     let state = threeSessions();
-    state = createRoutine(state, { name: 'Other' }, ids('r2'));
-    state = addSession(state, 'r2', 'Elsewhere', ids('z'));
+    state = createRoutine(state, { name: 'Other' }, ids('r2')).document;
+    state = addSession(state, 'r2', 'Elsewhere', ids('z')).document;
     const before = state.routines[1];
     const result = reorderSessions(state, 'r', ['c', 'a', 'b']);
-    expect(result.routines[1]).toBe(before);
+    expect(result.document.routines[1]).toBe(before);
     expect(sortedIds(state)).toEqual(['a', 'b', 'c']);
   });
 
@@ -158,16 +163,16 @@ describe('session reordering', () => {
   // append/delete keep the committed order intact.
   it('preserves snapshots and supports append and delete after reorder', () => {
     let state = threeSessions();
-    state = captureSnapshot(state, 'r', ids('snap'), clock());
+    state = captureSnapshot(state, 'r', ids('snap'), clock()).document;
     const snapshots = state.routines[0]!.snapshots;
-    state = reorderSessions(state, 'r', ['c', 'a', 'b']);
+    state = reorderSessions(state, 'r', ['c', 'a', 'b']).document;
     expect(state.routines[0]!.snapshots).toBe(snapshots);
-    state = addSession(state, 'r', 'Delta', ids('d'));
+    state = addSession(state, 'r', 'Delta', ids('d')).document;
     expect(
       state.routines[0]!.sessions.find((session) => session.id === 'd')!.order,
     ).toBe(4);
     expect(sortedIds(state)).toEqual(['c', 'a', 'b', 'd']);
-    state = deleteSession(state, 'r', 'a');
+    state = deleteSession(state, 'r', 'a').document;
     expect(sortedIds(state)).toEqual(['c', 'b', 'd']);
   });
 });

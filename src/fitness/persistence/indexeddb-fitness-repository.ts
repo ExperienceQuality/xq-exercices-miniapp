@@ -5,6 +5,7 @@ import {
 } from '../../app/dependencies';
 import { FitnessError, messages } from '../domain/errors';
 import { emptyFitnessDocument, type FitnessDocumentV2 } from '../domain/model';
+import { applyMutation, type FitnessMutation } from '../domain/mutations';
 import type {
   FitnessRepository,
   LoadedFitnessState,
@@ -117,11 +118,10 @@ export class IndexedDbFitnessRepository implements FitnessRepository {
     }
   }
 
-  async commit(
+  async apply(
     expectedRevision: number,
-    candidate: FitnessDocumentV2,
+    mutation: FitnessMutation,
   ): Promise<{ readonly storageRevision: number }> {
-    const document = parseFitnessDocumentV2(candidate);
     try {
       const database = await this.db();
       const transaction = database.transaction('records', 'readwrite');
@@ -131,6 +131,9 @@ export class IndexedDbFitnessRepository implements FitnessRepository {
         await transaction.done.catch(() => undefined);
         throw new FitnessError('storage-conflict', messages.conflict);
       }
+      const document = parseFitnessDocumentV2(
+        applyMutation(primary.document, mutation),
+      );
       const storageRevision = expectedRevision + 1;
       await transaction.store.put(structuredClone(primary), 'recovery');
       await transaction.store.put(

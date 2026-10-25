@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { FitnessController } from './fitness-controller';
 import type { FitnessDependencies } from './dependencies';
 import type { FitnessDocumentV2 } from '../fitness/domain/model';
+import type { FitnessMutation } from '../fitness/domain/mutations';
+import { applyMutation } from '../fitness/domain/mutations';
 
 function dependencies(
   document: FitnessDocumentV2 = { schemaVersion: 2, routines: [] },
@@ -14,8 +16,8 @@ function dependencies(
         storageRevision: 0,
         recovered: false,
       })),
-      commit: vi.fn(async (_revision, candidate) => {
-        current = candidate;
+      apply: vi.fn(async (_revision, mutation) => {
+        current = applyMutation(current, mutation);
         return { storageRevision: 1 };
       }),
     },
@@ -30,8 +32,11 @@ function dependencies(
   };
 }
 
-const commitCalls = (deps: FitnessDependencies) =>
-  (deps.repository.commit as ReturnType<typeof vi.fn>).mock.calls;
+const applyCalls = (deps: FitnessDependencies) =>
+  (deps.repository.apply as ReturnType<typeof vi.fn>).mock.calls as [
+    number,
+    FitnessMutation,
+  ][];
 
 describe('FitnessController', () => {
   it('loads and creates a normalized routine through the repository', async () => {
@@ -41,7 +46,11 @@ describe('FitnessController', () => {
     await controller.saveRoutine('  Legs  ', '  Strength  ');
     expect(controller.routine?.name).toBe('Legs');
     expect(controller.routine?.notes).toBe('Strength');
-    expect(deps.repository.commit).toHaveBeenCalledOnce();
+    expect(deps.repository.apply).toHaveBeenCalledOnce();
+    expect(applyCalls(deps)[0]).toEqual([
+      0,
+      { kind: 'create-routine', routine: controller.document.routines[0] },
+    ]);
   });
 
   it('keeps the feature unavailable and preserves the original safe load error', async () => {
@@ -85,7 +94,8 @@ describe('FitnessController', () => {
   });
 
   it('creates, edits, removes, and snapshots exercises', async () => {
-    const controller = new FitnessController(dependencies());
+    const deps = dependencies();
+    const controller = new FitnessController(deps);
     await controller.load();
     await controller.saveRoutine('Routine', '');
     await controller.saveSession('Session');
@@ -109,6 +119,15 @@ describe('FitnessController', () => {
     await controller.removeExercise(exercise.id);
     await controller.snapshot();
     expect(controller.routine!.snapshots).toHaveLength(2);
+    expect(applyCalls(deps).map(([, mutation]) => mutation.kind)).toEqual([
+      'create-routine',
+      'add-session',
+      'add-exercise',
+      'update-exercise',
+      'capture-snapshot',
+      'delete-exercise',
+      'capture-snapshot',
+    ]);
   });
 
   it('reports missing parent errors without publishing', async () => {
@@ -140,7 +159,7 @@ describe('FitnessController', () => {
 
   it('does not publish a candidate when persistence fails', async () => {
     const deps = dependencies();
-    deps.repository.commit = vi.fn(async () => {
+    deps.repository.apply = vi.fn(async () => {
       throw new Error('save failed');
     });
     const controller = new FitnessController(deps);
@@ -152,7 +171,25 @@ describe('FitnessController', () => {
     expect(controller.error).toBe('save failed');
   });
 
-  it('supports import success, cancellation, and safe invalid errors', async () => {
+  it('keeps the next queued mutation usable after a storage failure', async () => {
+    const deps = dependencies();
+    const controller = new FitnessController(deps);
+    await controller.load();
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async () => {
+      throw new Error('save failed');
+    });
+    await expect(controller.saveRoutine('First', '')).rejects.toThrow(
+      'save failed',
+    );
+    const queued = controller.saveRoutine('Second', '');
+    deps.repository.apply = realApply;
+    await queued;
+    expect(controller.routine?.name).toBe('Second');
+    expect(controller.document.routines).toHaveLength(1);
+  });
+
+  it('persists import through a replace-document mutation', async () => {
     const deps = dependencies();
     const controller = new FitnessController(deps);
     await controller.load();
@@ -162,6 +199,13 @@ describe('FitnessController', () => {
       new File(['{"schemaVersion":2,"routines":[]}'], 'fitness.json'),
     );
     expect(controller.notice).toBe('Fitness data imported.');
+    expect(applyCalls(deps).at(-1)).toEqual([
+      0,
+      {
+        kind: 'replace-document',
+        document: { schemaVersion: 2, routines: [] },
+      },
+    ]);
     await controller.importFile(new File(['not-json'], 'broken.json'));
     expect(controller.error).toBe('The selected Fitness file is invalid.');
   });
@@ -194,9 +238,9 @@ describe('FitnessController', () => {
     const pending = new Promise<void>((resolve) => {
       release = resolve;
     });
-    deps.repository.commit = vi.fn(async (_revision, candidate) => {
+    deps.repository.apply = vi.fn(async () => {
       await pending;
-      return { storageRevision: 1, candidate };
+      return { storageRevision: 1 };
     });
     const controller = new FitnessController(deps);
     await controller.load();
@@ -204,7 +248,7 @@ describe('FitnessController', () => {
     const second = controller.saveRoutine('Second', '');
     release();
     await Promise.all([first, second]);
-    expect(deps.repository.commit).toHaveBeenCalledTimes(2);
+    expect(deps.repository.apply).toHaveBeenCalledTimes(2);
     expect(controller.routine?.name).toBe('Second');
   });
 
@@ -248,18 +292,22 @@ describe('FitnessController exercise reordering', () => {
     const sessionId = controller.session!.id;
     const [a, b, c] = exerciseIds(controller);
     // FIT-103: a no-op reorder skips the repository write entirely.
-    const writesBefore = commitCalls(deps).length;
+    const writesBefore = applyCalls(deps).length;
     await controller.reorderExercises(routineId, sessionId, [a!, b!, c!]);
-    expect(commitCalls(deps).length).toBe(writesBefore);
+    expect(applyCalls(deps).length).toBe(writesBefore);
     // FIT-105: an actual reorder writes once, publishes the new order, and
-    // the committed candidate carries it for persistence.
+    // the persisted mutation carries the exact permutation.
     await controller.reorderExercises(routineId, sessionId, [c!, a!, b!]);
     expect(exerciseIds(controller)).toEqual([c, a, b]);
-    expect(commitCalls(deps).length).toBe(writesBefore + 1);
-    const candidate = commitCalls(deps).at(-1)![1] as FitnessDocumentV2;
-    expect(
-      candidate.routines[0]!.sessions[0]!.exercises.map((item) => item.id),
-    ).toEqual([c, a, b]);
+    expect(applyCalls(deps).length).toBe(writesBefore + 1);
+    const [revision, mutation] = applyCalls(deps).at(-1)!;
+    expect(revision).toBe(controller.revision);
+    expect(mutation).toEqual({
+      kind: 'reorder-exercises',
+      routineId,
+      sessionId,
+      exerciseIds: [c, a, b],
+    });
     // A fresh controller reloading through the fake port sees the order.
     const again = new FitnessController(deps);
     await again.load();
@@ -274,7 +322,7 @@ describe('FitnessController exercise reordering', () => {
     const routineId = controller.routine!.id;
     const sessionId = controller.session!.id;
     const ids = exerciseIds(controller);
-    const writesBefore = commitCalls(deps).length;
+    const writesBefore = applyCalls(deps).length;
     // FIT-102: a malformed permutation rejects with 'validation' before
     // any repository write and surfaces like other command failures.
     await expect(
@@ -291,7 +339,7 @@ describe('FitnessController exercise reordering', () => {
     await expect(
       controller.reorderExercises(routineId, 'missing', ids),
     ).rejects.toThrow('The training session no longer exists.');
-    expect(commitCalls(deps).length).toBe(writesBefore);
+    expect(applyCalls(deps).length).toBe(writesBefore);
     expect(controller.reorderPending).toBe(false);
   });
 
@@ -308,10 +356,10 @@ describe('FitnessController exercise reordering', () => {
     const sessionIds = controller.routine!.sessions.map(
       (session) => session.id,
     );
-    const realCommit = deps.repository.commit;
-    deps.repository.commit = vi.fn(async (revision, candidate) => {
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
       await gate;
-      return realCommit(revision, candidate);
+      return realApply(revision, mutation);
     });
     // FIT-108: the parent ids were captured in the call signature; moving
     // the selection mid-flight must not retarget the write.
@@ -360,10 +408,10 @@ describe('FitnessController exercise reordering', () => {
       (session) => session.name === 'Upper',
     )!;
     const ids = upper.exercises.map((item) => item.id);
-    const realCommit = deps.repository.commit;
-    deps.repository.commit = vi.fn(async (revision, candidate) => {
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
       await gate;
-      return realCommit(revision, candidate);
+      return realApply(revision, mutation);
     });
     const pendingSave = controller.reorderSessions(routineId, [
       sessionIds[1]!,
@@ -392,7 +440,7 @@ describe('FitnessController exercise reordering', () => {
     ]);
   });
 
-  // FIT-110: the queued candidate uses a copy of the caller's array; a
+  // FIT-110: the queued mutation uses a copy of the caller's array; a
   // caller-side mutation before the queue drains must not leak in.
   it('copies the caller exerciseIds array before queueing', async () => {
     const deps = dependencies();
@@ -404,10 +452,10 @@ describe('FitnessController exercise reordering', () => {
     const routineId = controller.routine!.id;
     const sessionId = controller.session!.id;
     const ids = exerciseIds(controller);
-    const realCommit = deps.repository.commit;
-    deps.repository.commit = vi.fn(async (revision, candidate) => {
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
       await gate;
-      return realCommit(revision, candidate);
+      return realApply(revision, mutation);
     });
     const requested = [ids[2]!, ids[0]!, ids[1]!];
     const pendingSave = controller.reorderExercises(
@@ -491,7 +539,7 @@ describe('FitnessController exercise reordering', () => {
     const ids = exerciseIds(controller);
     const documentBefore = controller.document;
     const revisionBefore = controller.revision;
-    deps.repository.commit = vi.fn(async () => {
+    deps.repository.apply = vi.fn(async () => {
       throw new Error('disk full');
     });
     // FIT-106: a generic failure rejects, publishes nothing, announces, and
@@ -505,13 +553,13 @@ describe('FitnessController exercise reordering', () => {
     expect(controller.error).toBe('disk full');
     // FIT-107: a revision conflict fails closed with no automatic retry.
     const { FitnessError, messages } = await import('../fitness/domain/errors');
-    deps.repository.commit = vi.fn(async () => {
+    deps.repository.apply = vi.fn(async () => {
       throw new FitnessError('storage-conflict', messages.conflict);
     });
     await expect(
       controller.reorderExercises(routineId, sessionId, [...ids].reverse()),
     ).rejects.toMatchObject({ code: 'storage-conflict' });
-    expect(deps.repository.commit).toHaveBeenCalledTimes(1);
+    expect(deps.repository.apply).toHaveBeenCalledTimes(1);
     expect(controller.document).toBe(documentBefore);
     expect(controller.error).toContain('another tab');
     expect(controller.reorderPending).toBe(false);

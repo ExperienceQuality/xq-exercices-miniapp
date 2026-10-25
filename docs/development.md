@@ -21,7 +21,7 @@
 | `npm run lint`              | ESLint `--max-warnings=0` + no-`.only` gate        |
 | `npm run check`             | `svelte-check` type checking (`tsconfig.app.json`) |
 | `npm run test:unit`         | Vitest run with V8 coverage thresholds             |
-| `npm run test:traceability` | Enforce FIT-001…FIT-052 scenario references        |
+| `npm run test:traceability` | Enforce FIT-001…FIT-111 scenario references        |
 | `npm run build`             | Vite production build (`dist/`)                    |
 | `npm run preview:test`      | Serve `dist/` on `127.0.0.1:4173`                  |
 | `npm run test:browser`      | Playwright suite (auto-starts preview)             |
@@ -39,7 +39,7 @@ src/app/
   RoutinesScreen.svelte          # level 1: routine list + create + import
   RoutineDetailScreen.svelte     # level 2: session list + progress snapshots
   SessionDetailScreen.svelte     # level 3: exercise list for one session
-  fitness-controller.ts          # app service: load/commit lifecycle,
+  fitness-controller.ts          # app service: load/apply lifecycle,
                                  # serialized mutation chain, selection,
                                  # editor state, pub-sub subscribe()
   dependencies.ts                # DI contracts: FitnessRepository,
@@ -49,10 +49,14 @@ src/fitness/domain/
   model.ts                       # FitnessDocumentV2, RoutineV2,
                                  # TrainingSessionV2, ExerciseV2,
                                  # ProgressSnapshotV2 (schemaVersion: 2)
-  commands.ts                    # pure document mutations: createRoutine,
+  commands.ts                    # pure commands returning
+                                 # {document, mutation}: createRoutine,
                                  # addSession, renameSession, deleteSession,
-                                 # addExercise, editExercise, deleteExercise,
+                                 # reorderSessions, addExercise, editExercise,
+                                 # deleteExercise, reorderExercises,
                                  # captureSnapshot
+  mutations.ts                   # FitnessMutation union + applyMutation
+                                 # reducer (document surgery replay)
   snapshots.ts                   # fold-name aggregation + progress classify
   validation.ts                  # normalizeName/Notes, foldName,
                                  # validateMetrics
@@ -60,12 +64,13 @@ src/fitness/domain/
 src/fitness/persistence/
   fitness-repository.ts          # typed repository interface
   indexeddb-fitness-repository.ts# idb impl: primary/recovery records,
-                                 # revision-checked commits
+                                 # revision-checked mutation apply
   schemas.ts                     # zod v1 + v2 document schemas,
                                  # inspectSchemaVersion, invariants
   migrations.ts                  # v1 → v2 document migration
 src/fitness/import/
-  import-fitness-document.ts     # decode (v1 migrate / v2 parse) + commit
+  import-fitness-document.ts     # decode (v1 migrate / v2 parse) +
+                                 # replace-document apply
 ```
 
 ### Design rules
@@ -78,14 +83,14 @@ src/fitness/import/
   fakes (`crypto.randomUUID`, `new Date().toISOString()` in prod).
 - **Serialized mutations.** The controller enqueues every mutation on a
   promise chain — no interleaved writes.
-- **Optimistic concurrency.** `commit(expectedRevision, candidate)`;
-  the repository aborts on revision mismatch → `storage-conflict`.
+- **Optimistic concurrency.** `apply(expectedRevision, mutation)`; the
+  repository aborts on revision mismatch → `storage-conflict`.
 - **Dual-slot persistence.** One `records` object store holds `primary`
-  and `recovery` records `{storageRevision, document}`. Commit writes
+  and `recovery` records `{storageRevision, document}`. Apply writes
   old primary → recovery, then new primary. Load repairs a corrupt
   primary from recovery; a future-version primary fails closed.
 - **Zod at every boundary.** Documents are re-parsed on load, on
-  commit, and on import. V2 schema enforces invariants: trimmed
+  apply, and on import. V2 schema enforces invariants: trimmed
   non-empty names, unique IDs across the document, unique session
   order, ≤ 2 snapshots, sorted/deduplicated snapshot entries with
   canonical `foldedName`, and internally consistent progress classes.
@@ -133,5 +138,5 @@ aria labels on all controls, `aria-live`/`role="status"` for notices.
   in `tests/browser/support/app.js`.
 - Every acceptance criterion has a `FIT-NNN` ID referenced in code or
   test comments; `test:traceability` fails the build if any of
-  FIT-001…FIT-052 is unreferenced.
+  FIT-001…FIT-111 is unreferenced.
 - `.only` in tests is a lint failure (`scripts/check-no-only.mjs`).

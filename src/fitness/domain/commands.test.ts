@@ -29,16 +29,16 @@ function populated(): FitnessDocumentV2 {
     emptyFitnessDocument(),
     { name: ' Routine ', notes: ' notes ' },
     ids('r'),
-  );
-  state = addSession(state, 'r', ' First ', ids('s1'));
-  state = addSession(state, 'r', 'Second', ids('s2'));
+  ).document;
+  state = addSession(state, 'r', ' First ', ids('s1')).document;
+  state = addSession(state, 'r', 'Second', ids('s2')).document;
   state = addExercise(
     state,
     'r',
     's1',
     { name: ' Press ', sets: 3, repetitions: 10, weightKg: 5 },
     ids('e1'),
-  );
+  ).document;
   return state;
 }
 
@@ -50,7 +50,11 @@ describe('domain commands', () => {
       { name: ' A ', notes: '   ' },
       ids('r'),
     );
-    expect(result.routines[0]).toEqual({
+    expect(result.mutation).toEqual({
+      kind: 'create-routine',
+      routine: result.document.routines[0],
+    });
+    expect(result.document.routines[0]).toEqual({
       id: 'r',
       name: 'A',
       sessions: [],
@@ -68,15 +72,34 @@ describe('domain commands', () => {
   it('appends unlimited sessions monotonically, renames, and deletes without renumbering', () => {
     let state = populated();
     for (let index = 3; index <= 8; index += 1)
-      state = addSession(state, 'r', `S${index}`, ids(`s${index}`));
+      state = addSession(state, 'r', `S${index}`, ids(`s${index}`)).document;
     expect(state.routines[0]!.sessions).toHaveLength(8);
-    state = renameSession(state, 'r', 's2', ' Renamed ');
+    const added = addSession(state, 'r', 'Ninth', ids('s9'));
+    expect(added.mutation).toEqual({
+      kind: 'add-session',
+      routineId: 'r',
+      session: { id: 's9', name: 'Ninth', order: 9, exercises: [] },
+    });
+    const renamed = renameSession(state, 'r', 's2', ' Renamed ');
+    expect(renamed.mutation).toEqual({
+      kind: 'rename-session',
+      routineId: 'r',
+      sessionId: 's2',
+      name: 'Renamed',
+    });
+    state = renamed.document;
     expect(state.routines[0]!.sessions[1]).toMatchObject({
       id: 's2',
       name: 'Renamed',
       order: 2,
     });
-    state = deleteSession(state, 'r', 's1');
+    const deleted = deleteSession(state, 'r', 's1');
+    expect(deleted.mutation).toEqual({
+      kind: 'delete-session',
+      routineId: 'r',
+      sessionId: 's1',
+    });
+    state = deleted.document;
     expect(state.routines[0]!.sessions[0]!.order).toBe(2);
     expect(() =>
       addSession(
@@ -105,31 +128,57 @@ describe('domain commands', () => {
 
   it('creates, edits, isolates, and deletes exercises with stable identity', () => {
     let state = populated();
-    state = addExercise(
+    const added = addExercise(
       state,
       'r',
       's2',
       { name: 'Curl', sets: 4, repetitions: 8, weightKg: 2.5 },
       ids('e2'),
     );
+    expect(added.mutation).toEqual({
+      kind: 'add-exercise',
+      routineId: 'r',
+      sessionId: 's2',
+      exercise: {
+        id: 'e2',
+        name: 'Curl',
+        sets: 4,
+        repetitions: 8,
+        weightKg: 2.5,
+      },
+    });
+    state = added.document;
     expect(
       state.routines[0]!.sessions.map((session) =>
         session.exercises.map((exercise) => exercise.id),
       ),
     ).toEqual([['e1'], ['e2']]);
-    state = editExercise(state, 'r', 's2', 'e2', {
+    const edited = editExercise(state, 'r', 's2', 'e2', {
       name: ' Curl 2 ',
       sets: 5,
       repetitions: 6,
       weightKg: 3,
     });
+    expect(edited.mutation).toEqual({
+      kind: 'update-exercise',
+      routineId: 'r',
+      sessionId: 's2',
+      exercise: {
+        id: 'e2',
+        name: 'Curl 2',
+        sets: 5,
+        repetitions: 6,
+        weightKg: 3,
+      },
+    });
+    state = edited.document;
     state = addExercise(
       state,
       'r',
       's2',
       { name: 'Keep', sets: 1, repetitions: 1, weightKg: 0 },
       ids('e3'),
-    );
+    ).document;
     expect(state.routines[0]!.sessions[1]!.exercises[0]).toEqual({
       id: 'e2',
       name: 'Curl 2',
@@ -137,7 +186,14 @@ describe('domain commands', () => {
       repetitions: 6,
       weightKg: 3,
     });
-    state = deleteExercise(state, 'r', 's2', 'e2');
+    const removed = deleteExercise(state, 'r', 's2', 'e2');
+    expect(removed.mutation).toEqual({
+      kind: 'delete-exercise',
+      routineId: 'r',
+      sessionId: 's2',
+      exerciseId: 'e2',
+    });
+    state = removed.document;
     expect(
       state.routines[0]!.sessions[1]!.exercises.map((item) => item.id),
     ).toEqual(['e3']);
@@ -145,20 +201,20 @@ describe('domain commands', () => {
 
   it('preserves unrelated routines and exercises through targeted replacement', () => {
     let state = populated();
-    state = createRoutine(state, { name: 'Other' }, ids('r2'));
+    state = createRoutine(state, { name: 'Other' }, ids('r2')).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'Second', sets: 1, repetitions: 1, weightKg: 0 },
       ids('e2'),
-    );
+    ).document;
     state = editExercise(state, 'r', 's1', 'e1', {
       name: 'Press changed',
       sets: 4,
       repetitions: 9,
       weightKg: 4,
-    });
+    }).document;
     expect(state.routines[1]!.name).toBe('Other');
     expect(state.routines[0]!.sessions[0]!.exercises[1]!.id).toBe('e2');
   });
@@ -237,14 +293,14 @@ describe('snapshots', () => {
       's2',
       { name: ' press ', sets: 5, repetitions: 8, weightKg: 10 },
       ids('e2'),
-    );
+    ).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'Abs', sets: 2, repetitions: 20, weightKg: 0 },
       ids('e3'),
-    );
+    ).document;
     expect(aggregateExercises(state.routines[0]!)).toEqual([
       {
         name: 'Abs',
@@ -272,22 +328,22 @@ describe('snapshots', () => {
       emptyFitnessDocument(),
       { name: 'Sort' },
       ids('r'),
-    );
-    state = addSession(state, 'r', 'S', ids('s'));
+    ).document;
+    state = addSession(state, 'r', 'S', ids('s')).document;
     state = addExercise(
       state,
       'r',
       's',
       { name: 'A', sets: 1, repetitions: 1, weightKg: 0 },
       ids('a'),
-    );
+    ).document;
     state = addExercise(
       state,
       'r',
       's',
       { name: 'Z', sets: 1, repetitions: 1, weightKg: 0 },
       ids('z'),
-    );
+    ).document;
     expect(
       aggregateExercises(state.routines[0]!).map((entry) => entry.name),
     ).toEqual(['A', 'Z']);
@@ -295,14 +351,20 @@ describe('snapshots', () => {
 
   it('classifies independently, permits immediate empty capture, retains two, and copies values', () => {
     let state = populated();
-    state = captureSnapshot(state, 'r', ids('p1'), clock());
+    const first = captureSnapshot(state, 'r', ids('p1'), clock());
+    expect(first.mutation).toMatchObject({
+      kind: 'capture-snapshot',
+      routineId: 'r',
+      snapshot: { id: 'p1', capturedAt: '2026-01-01T00:00:00.000Z' },
+    });
+    state = first.document;
     state = editExercise(state, 'r', 's1', 'e1', {
       name: 'Press',
       sets: 9,
       repetitions: 12,
       weightKg: 4,
-    });
-    state = captureSnapshot(state, 'r', ids('p2'), clock());
+    }).document;
+    state = captureSnapshot(state, 'r', ids('p2'), clock()).document;
     expect(state.routines[0]!.snapshots[1]!.entries[0]).toMatchObject({
       repetitionsProgress: 'increased',
       weightProgress: 'decreased',
@@ -312,8 +374,8 @@ describe('snapshots', () => {
       sets: 9,
       repetitions: 12,
       weightKg: 4,
-    });
-    state = captureSnapshot(state, 'r', ids('p3'), clock());
+    }).document;
+    state = captureSnapshot(state, 'r', ids('p3'), clock()).document;
     expect(state.routines[0]!.snapshots.map((snapshot) => snapshot.id)).toEqual(
       ['p2', 'p3'],
     );
@@ -326,8 +388,8 @@ describe('snapshots', () => {
       emptyFitnessDocument(),
       { name: 'Empty' },
       ids('empty'),
-    );
-    empty = captureSnapshot(empty, 'empty', ids('snap'), clock());
+    ).document;
+    empty = captureSnapshot(empty, 'empty', ids('snap'), clock()).document;
     expect(empty.routines[0]!.snapshots[0]!.entries).toEqual([]);
   });
 
@@ -341,46 +403,50 @@ describe('snapshots', () => {
 
 describe('exercise reordering', () => {
   function withExercises(): FitnessDocumentV2 {
-    let state = createRoutine(emptyFitnessDocument(), { name: 'R' }, ids('r'));
-    state = addSession(state, 'r', ' Upper ', ids('s1'));
-    state = addSession(state, 'r', 'Lower', ids('s2'));
+    let state = createRoutine(
+      emptyFitnessDocument(),
+      { name: 'R' },
+      ids('r'),
+    ).document;
+    state = addSession(state, 'r', ' Upper ', ids('s1')).document;
+    state = addSession(state, 'r', 'Lower', ids('s2')).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: ' Press ', sets: 3, repetitions: 10, weightKg: 40 },
       ids('e1'),
-    );
+    ).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'Row', sets: 3, repetitions: 12, weightKg: 35 },
       ids('e2'),
-    );
+    ).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'Curl', sets: 4, repetitions: 8, weightKg: 12 },
       ids('e3'),
-    );
+    ).document;
     state = addExercise(
       state,
       'r',
       's2',
       { name: 'Squat', sets: 5, repetitions: 5, weightKg: 60 },
       ids('x1'),
-    );
-    state = createRoutine(state, { name: 'Other' }, ids('r2'));
-    state = addSession(state, 'r2', 'Full', ids('t1'));
+    ).document;
+    state = createRoutine(state, { name: 'Other' }, ids('r2')).document;
+    state = addSession(state, 'r2', 'Full', ids('t1')).document;
     state = addExercise(
       state,
       'r2',
       't1',
       { name: 'Plank', sets: 1, repetitions: 1, weightKg: 0 },
       ids('y1'),
-    );
+    ).document;
     return state;
   }
 
@@ -400,15 +466,23 @@ describe('exercise reordering', () => {
     const state = withExercises();
     const before = sessionOf(state, 'r', 's1').exercises;
     const result = reorderExercises(state, 'r', 's1', ['e3', 'e1', 'e2']);
-    const moved = sessionOf(result, 'r', 's1');
+    expect(result.mutation).toEqual({
+      kind: 'reorder-exercises',
+      routineId: 'r',
+      sessionId: 's1',
+      exerciseIds: ['e3', 'e1', 'e2'],
+    });
+    const moved = sessionOf(result.document, 'r', 's1');
     expect(moved.exercises.map((item) => item.id)).toEqual(['e3', 'e1', 'e2']);
     // The same exercise objects move with every field intact.
     expect(moved.exercises[0]).toBe(before[2]);
     expect(moved.exercises[1]).toBe(before[0]);
     expect(moved.exercises[2]).toBe(before[1]);
     // Other sessions and routines keep their identity and contents.
-    expect(sessionOf(result, 'r', 's2')).toBe(sessionOf(state, 'r', 's2'));
-    expect(result.routines[1]).toBe(state.routines[1]);
+    expect(sessionOf(result.document, 'r', 's2')).toBe(
+      sessionOf(state, 'r', 's2'),
+    );
+    expect(result.document.routines[1]).toBe(state.routines[1]);
     // The input document is not mutated.
     expect(
       sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
@@ -462,11 +536,17 @@ describe('exercise reordering', () => {
   // document — no write occurs.
   it('returns the original document for identical, empty, and single orders', () => {
     const state = withExercises();
-    expect(reorderExercises(state, 'r', 's1', ['e1', 'e2', 'e3'])).toBe(state);
-    expect(reorderExercises(state, 'r', 's2', ['x1'])).toBe(state);
-    let empty = createRoutine(emptyFitnessDocument(), { name: 'E' }, ids('r'));
-    empty = addSession(empty, 'r', 'None', ids('s0'));
-    expect(reorderExercises(empty, 'r', 's0', [])).toBe(empty);
+    expect(
+      reorderExercises(state, 'r', 's1', ['e1', 'e2', 'e3']).document,
+    ).toBe(state);
+    expect(reorderExercises(state, 'r', 's2', ['x1']).document).toBe(state);
+    let empty = createRoutine(
+      emptyFitnessDocument(),
+      { name: 'E' },
+      ids('r'),
+    ).document;
+    empty = addSession(empty, 'r', 'None', ids('s0')).document;
+    expect(reorderExercises(empty, 'r', 's0', []).document).toBe(empty);
   });
 
   // FIT-103: after a reorder, add appends last, edit preserves position and
@@ -476,14 +556,14 @@ describe('exercise reordering', () => {
       'e3',
       'e1',
       'e2',
-    ]);
+    ]).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'Fly', sets: 3, repetitions: 12, weightKg: 8 },
       ids('e4'),
-    );
+    ).document;
     expect(
       sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
     ).toEqual(['e3', 'e1', 'e2', 'e4']);
@@ -492,7 +572,7 @@ describe('exercise reordering', () => {
       sets: 4,
       repetitions: 6,
       weightKg: 50,
-    });
+    }).document;
     const edited = sessionOf(state, 'r', 's1').exercises;
     expect(edited.map((item) => item.id)).toEqual(['e3', 'e1', 'e2', 'e4']);
     expect(edited[1]).toMatchObject({
@@ -502,7 +582,7 @@ describe('exercise reordering', () => {
       repetitions: 6,
       weightKg: 50,
     });
-    state = deleteExercise(state, 'r', 's1', 'e3');
+    state = deleteExercise(state, 'r', 's1', 'e3').document;
     expect(
       sessionOf(state, 'r', 's1').exercises.map((item) => item.id),
     ).toEqual(['e1', 'e2', 'e4']);
@@ -511,24 +591,28 @@ describe('exercise reordering', () => {
   // FIT-104: same-named exercises resolve by stable id — the correct item
   // moves with its own values, never matched by name.
   it('reorders same-named exercises by stable identity', () => {
-    let state = createRoutine(emptyFitnessDocument(), { name: 'R' }, ids('r'));
-    state = addSession(state, 'r', 'S', ids('s1'));
+    let state = createRoutine(
+      emptyFitnessDocument(),
+      { name: 'R' },
+      ids('r'),
+    ).document;
+    state = addSession(state, 'r', 'S', ids('s1')).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'Press', sets: 3, repetitions: 10, weightKg: 40 },
       ids('p1'),
-    );
+    ).document;
     state = addExercise(
       state,
       'r',
       's1',
       { name: 'press', sets: 5, repetitions: 5, weightKg: 60 },
       ids('p2'),
-    );
+    ).document;
     const result = reorderExercises(state, 'r', 's1', ['p2', 'p1']);
-    const moved = sessionOf(result, 'r', 's1').exercises;
+    const moved = sessionOf(result.document, 'r', 's1').exercises;
     expect(moved.map((item) => item.id)).toEqual(['p2', 'p1']);
     expect(moved[0]).toMatchObject({ name: 'press', weightKg: 60 });
     expect(moved[1]).toMatchObject({ name: 'Press', weightKg: 40 });
@@ -539,31 +623,37 @@ describe('exercise reordering', () => {
   // first-encounter casing caveat for same-named exercises.
   it('leaves snapshots and aggregate semantics unchanged except casing', () => {
     let state = withExercises();
-    state = captureSnapshot(state, 'r', ids('p1'), clock());
+    state = captureSnapshot(state, 'r', ids('p1'), clock()).document;
     const before = aggregateExercises(state.routines[0]!);
     const result = reorderExercises(state, 'r', 's1', ['e3', 'e1', 'e2']);
-    expect(result.routines[0]!.snapshots).toBe(state.routines[0]!.snapshots);
-    expect(aggregateExercises(result.routines[0]!)).toEqual(before);
+    expect(result.document.routines[0]!.snapshots).toBe(
+      state.routines[0]!.snapshots,
+    );
+    expect(aggregateExercises(result.document.routines[0]!)).toEqual(before);
 
-    let dup = createRoutine(emptyFitnessDocument(), { name: 'D' }, ids('r'));
-    dup = addSession(dup, 'r', 'S', ids('s1'));
+    let dup = createRoutine(
+      emptyFitnessDocument(),
+      { name: 'D' },
+      ids('r'),
+    ).document;
+    dup = addSession(dup, 'r', 'S', ids('s1')).document;
     dup = addExercise(
       dup,
       'r',
       's1',
       { name: 'press', sets: 3, repetitions: 10, weightKg: 40 },
       ids('d1'),
-    );
+    ).document;
     dup = addExercise(
       dup,
       'r',
       's1',
       { name: 'PRESS', sets: 5, repetitions: 5, weightKg: 60 },
       ids('d2'),
-    );
+    ).document;
     const firstPass = aggregateExercises(dup.routines[0]!)[0]!;
     const reordered = reorderExercises(dup, 'r', 's1', ['d2', 'd1']);
-    const secondPass = aggregateExercises(reordered.routines[0]!)[0]!;
+    const secondPass = aggregateExercises(reordered.document.routines[0]!)[0]!;
     expect(secondPass.foldedName).toBe(firstPass.foldedName);
     expect(firstPass).toMatchObject({
       name: 'press',
