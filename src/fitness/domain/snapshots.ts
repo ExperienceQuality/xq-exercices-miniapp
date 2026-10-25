@@ -1,6 +1,11 @@
 import type { IdGenerator, Clock } from '../../app/dependencies';
 import { FitnessError, messages } from './errors';
-import type { ProgressClass, RoutineV2, SnapshotEntryV2 } from './model';
+import type {
+  ProgressClass,
+  ProgressSnapshotV2,
+  RoutineV2,
+  SnapshotEntryV2,
+} from './model';
 import { foldName, normalizeName } from './validation';
 
 function classify(current: number, previous?: number): ProgressClass {
@@ -59,6 +64,25 @@ export function aggregateExercises(routine: RoutineV2): SnapshotEntryV2[] {
     });
 }
 
+export function buildSnapshot(
+  routine: RoutineV2,
+  ids: IdGenerator,
+  clock: Clock,
+): ProgressSnapshotV2 {
+  return {
+    id: ids.next(),
+    capturedAt: clock.nowIso(),
+    entries: aggregateExercises(routine),
+  };
+}
+
+export function appendSnapshot(
+  routine: RoutineV2,
+  snapshot: ProgressSnapshotV2,
+): RoutineV2 {
+  return { ...routine, snapshots: [...routine.snapshots, snapshot].slice(-2) };
+}
+
 export function captureRoutineSnapshot(
   routine: RoutineV2,
   ids: IdGenerator,
@@ -66,10 +90,5 @@ export function captureRoutineSnapshot(
 ): RoutineV2 {
   if (!routine)
     throw new FitnessError('missing-routine', messages.missingRoutine);
-  const snapshot = {
-    id: ids.next(),
-    capturedAt: clock.nowIso(),
-    entries: aggregateExercises(routine),
-  };
-  return { ...routine, snapshots: [...routine.snapshots, snapshot].slice(-2) };
+  return appendSnapshot(routine, buildSnapshot(routine, ids, clock));
 }

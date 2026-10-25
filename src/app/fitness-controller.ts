@@ -14,6 +14,7 @@ import {
   captureSnapshot,
   type ExerciseInput,
 } from '../fitness/domain/commands';
+import type { FitnessMutation } from '../fitness/domain/mutations';
 import { importFitnessDocument } from '../fitness/import/import-fitness-document';
 
 export type ControllerStatus = 'loading' | 'ready' | 'unavailable';
@@ -130,13 +131,10 @@ export class FitnessController {
     this.notify();
   }
 
-  private async commit(candidate: FitnessDocumentV2) {
+  private async apply(mutation: FitnessMutation, candidate: FitnessDocumentV2) {
     this.error = '';
     try {
-      const result = await this.deps.repository.commit(
-        this.revision,
-        candidate,
-      );
+      const result = await this.deps.repository.apply(this.revision, mutation);
       this.document = candidate;
       this.revision = result.storageRevision;
       this.notify();
@@ -150,12 +148,12 @@ export class FitnessController {
   async saveRoutine(name: string, notes: string) {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
-      const candidate = createRoutine(
+      const { document: candidate, mutation } = createRoutine(
         this.document,
         { name, notes },
         this.deps.ids,
       );
-      await this.commit(candidate);
+      await this.apply(mutation, candidate);
       this.selectRoutine(candidate.routines.at(-1)!.id);
       this.closeEditor();
     });
@@ -164,13 +162,13 @@ export class FitnessController {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine) throw missing('routine');
-      const candidate = addSession(
+      const { document: candidate, mutation } = addSession(
         this.document,
         this.routine.id,
         name,
         this.deps.ids,
       );
-      await this.commit(candidate);
+      await this.apply(mutation, candidate);
       this.selectedSessionId =
         candidate.routines
           .find((r) => r.id === this.routine?.id)
@@ -182,9 +180,13 @@ export class FitnessController {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
-      await this.commit(
-        renameSession(this.document, this.routine.id, this.session.id, name),
+      const { document: candidate, mutation } = renameSession(
+        this.document,
+        this.routine.id,
+        this.session.id,
+        name,
       );
+      await this.apply(mutation, candidate);
       this.closeEditor();
     });
   }
@@ -197,22 +199,22 @@ export class FitnessController {
     if (this.reorderPending) return;
     this.reorderPending = true;
     this.notify();
-    // Snapshot the caller's array: the candidate is built when the queue
+    // Snapshot the caller's array: the mutation is built when the queue
     // reaches it, so it must not observe later caller-side edits.
     const queuedIds = [...sessionIds];
     try {
       await this.enqueueMutation(async () => {
         await this.waitForLoad();
-        const candidate = reorderSessionsCommand(
+        const { document: candidate, mutation } = reorderSessionsCommand(
           this.document,
           routineId,
           queuedIds,
         );
         if (candidate === this.document) return;
-        await this.commit(candidate);
+        await this.apply(mutation, candidate);
       });
     } catch (error) {
-      // commit() already surfaced repository failures; validation, missing
+      // apply() already surfaced repository failures; validation, missing
       // routine, and other command-time errors need the same treatment.
       this.error = safeError(error);
       this.notify();
@@ -232,23 +234,23 @@ export class FitnessController {
     if (this.reorderPending) return;
     this.reorderPending = true;
     this.notify();
-    // Snapshot the caller's array: the candidate is built when the queue
+    // Snapshot the caller's array: the mutation is built when the queue
     // reaches it, so it must not observe later caller-side edits.
     const queuedIds = [...exerciseIds];
     try {
       await this.enqueueMutation(async () => {
         await this.waitForLoad();
-        const candidate = reorderExercisesCommand(
+        const { document: candidate, mutation } = reorderExercisesCommand(
           this.document,
           routineId,
           sessionId,
           queuedIds,
         );
         if (candidate === this.document) return;
-        await this.commit(candidate);
+        await this.apply(mutation, candidate);
       });
     } catch (error) {
-      // commit() already surfaced repository failures; validation, missing
+      // apply() already surfaced repository failures; validation, missing
       // parents, and other command-time errors need the same treatment.
       this.error = safeError(error);
       this.notify();
@@ -262,9 +264,12 @@ export class FitnessController {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
-      await this.commit(
-        deleteSession(this.document, this.routine.id, this.session.id),
+      const { document: candidate, mutation } = deleteSession(
+        this.document,
+        this.routine.id,
+        this.session.id,
       );
+      await this.apply(mutation, candidate);
       this.selectedSessionId = null;
       this.notify();
     });
@@ -273,7 +278,7 @@ export class FitnessController {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
-      const candidate = this.editingExerciseId
+      const { document: candidate, mutation } = this.editingExerciseId
         ? editExercise(
             this.document,
             this.routine.id,
@@ -288,7 +293,7 @@ export class FitnessController {
             input,
             this.deps.ids,
           );
-      await this.commit(candidate);
+      await this.apply(mutation, candidate);
       this.closeEditor();
     });
   }
@@ -296,23 +301,26 @@ export class FitnessController {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
-      await this.commit(
-        deleteExercise(this.document, this.routine.id, this.session.id, id),
+      const { document: candidate, mutation } = deleteExercise(
+        this.document,
+        this.routine.id,
+        this.session.id,
+        id,
       );
+      await this.apply(mutation, candidate);
     });
   }
   async snapshot() {
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine) throw missing('routine');
-      await this.commit(
-        captureSnapshot(
-          this.document,
-          this.routine.id,
-          this.deps.ids,
-          this.deps.clock,
-        ),
+      const { document: candidate, mutation } = captureSnapshot(
+        this.document,
+        this.routine.id,
+        this.deps.ids,
+        this.deps.clock,
       );
+      await this.apply(mutation, candidate);
       this.notice = 'Progress snapshot captured.';
       this.notify();
     });
@@ -328,7 +336,10 @@ export class FitnessController {
           this.deps.ids,
           this.revision,
           (revision, candidate) =>
-            this.deps.repository.commit(revision, candidate),
+            this.deps.repository.apply(revision, {
+              kind: 'replace-document',
+              document: candidate,
+            }),
         );
         this.document = result.document;
         this.revision = result.storageRevision;

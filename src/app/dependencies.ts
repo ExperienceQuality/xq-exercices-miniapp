@@ -1,3 +1,5 @@
+import type { FitnessMutation } from '../fitness/domain/mutations';
+
 export type StorageNamespace =
   | { kind: 'production' }
   | { kind: 'automated-test'; runId: string }
@@ -16,9 +18,9 @@ export interface LoadedFitnessState {
 
 export interface FitnessRepository {
   load(): Promise<LoadedFitnessState>;
-  commit(
+  apply(
     expectedRevision: number,
-    candidate: FitnessDocumentV2,
+    mutation: FitnessMutation,
   ): Promise<{ readonly storageRevision: number }>;
 }
 
