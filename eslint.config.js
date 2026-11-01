@@ -7,6 +7,9 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     ignores: [
+      '.cursor/**',
+      '.devin/**',
+      '.squad/**',
       'coverage/**',
       'dist/**',
       'node_modules/**',
