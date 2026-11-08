@@ -136,6 +136,16 @@ export const test = base.extend({
       );
     };
 
+    // Routine / session open controls share `.list-button`. Prefer that
+    // over swipe Delete (`Delete {name}`) and reorder handles when tests
+    // assert presence or navigate by title.
+    const routineOpenButton = (name) =>
+      page.locator('.list-button').filter({
+        has: page.locator('strong', {
+          hasText: new RegExp(escapeRegExp(name)),
+        }),
+      });
+
     // Opening a session must target the row navigation button
     // (.list-button) by exact name: the new reorder handle and
     // "Move {name} up/down" controls would otherwise win the fuzzy
@@ -391,6 +401,7 @@ export const test = base.extend({
       openSession,
       installNamespaceIsolation: () => installNamespaceIsolation(context),
       page,
+      routineOpenButton,
       readFixture,
       seedRecords,
       setTextScale,

@@ -701,19 +701,23 @@ test.describe('Session reordering acceptance', () => {
     expect(await committedRevision(app.page)).toBe(revisionBefore);
 
     // Real no-op: drag past the movement threshold to another row, then
-    // back onto the original slot before releasing. The drop point is
-    // measured after holdDrag's scroll-into-view settles but before any
-    // preview-inducing move reflows the rows.
+    // back onto the original slot before releasing. Remeasure both
+    // points after holdDrag's scroll-into-view — prior Escape/cancel
+    // gestures and the routine-detail Delete control shift layout on
+    // short viewports, so cached centers from earlier can land on the
+    // wrong insert index.
     const firstRow = sessionRowById(app.page, ids[0]!);
+    const lastRowFresh = sessionRowById(app.page, ids[2]!);
     gesture = await holdDrag(
       context,
       app.page,
       useTouch,
       reorderHandle(app.page, 'Red'),
     );
-    const firstCenter = await rowDropPoint(firstRow, 'before');
-    await gesture.move(lastCenter);
-    await gesture.move(firstCenter);
+    const awayCenter = await elementCenter(lastRowFresh);
+    const homeCenter = await rowDropPoint(firstRow, 'before');
+    await gesture.move(awayCenter);
+    await gesture.move(homeCenter);
     await gesture.release();
     expect(await sessionRowIds(app.page)).toEqual(ids);
     expect(await committedSessionIds(app.page, routineId)).toEqual(ids);
