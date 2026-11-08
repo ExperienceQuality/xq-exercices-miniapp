@@ -126,10 +126,6 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     app,
     context,
   }, testInfo) => {
-    test.skip(
-      !hasTouch(testInfo),
-      'Vertical scroll / diagonal axis lock verified on touch projects.',
-    );
     const { touchScrollOn } = await import('./support/session-reordering.js');
     await app.startFreshApp('dr-axis');
     await seedDocument(
@@ -141,7 +137,13 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
         })),
       ),
     );
-    // Trusted vertical scroll over a row must not reveal Delete.
+    // Vertical-dominant pointer drag must not reveal Delete.
+    await swipeRoutine(context, app.page, 'Axis 0', 10, hasTouch(testInfo), {
+      verticalPx: 120,
+    });
+    await expect.poll(async () => revealOffset(app.page, 'Axis 0')).toBe(0);
+
+    // Trusted CDP vertical scroll over a row must not reveal Delete.
     const delta = await touchScrollOn(
       context,
       app.page,
@@ -152,7 +154,7 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     await expect.poll(async () => revealOffset(app.page, 'Axis 0')).toBe(0);
 
     // Dominant horizontal diagonal still reveals.
-    await swipeRoutine(context, app.page, 'Axis 1', 70, true, {
+    await swipeRoutine(context, app.page, 'Axis 1', 70, hasTouch(testInfo), {
       verticalPx: 20,
     });
     await expectRevealed(app.page, 'Axis 1', true);
@@ -211,6 +213,7 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     await expectRevealed(app.page, 'Gamma', true);
     await app.page.getByRole('heading', { name: 'Routines' }).click();
     await expectRevealed(app.page, 'Gamma', false);
+    expect(await revealOffset(app.page, 'Gamma')).toBe(0);
   });
 
   test('TA-DR-010 pointer cancel mid-swipe leaves no reveal or write', async ({
@@ -230,18 +233,18 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     expect(await committedRevision(app.page)).toBe(revisionBefore);
   });
 
-  test('TA-DR-011 mouse drag on desktop matches reveal policy', async ({
+  test('TA-DR-011 pointer drag matches reveal policy', async ({
     app,
     context,
   }, testInfo) => {
-    test.skip(hasTouch(testInfo), 'Desktop mouse policy only.');
     await app.startFreshApp('dr-mouse');
     await seedDocument(
       app,
       buildMultiRoutineDocument([{ id: 'm', name: 'Mouse Row' }]),
     );
-    await swipeRoutine(context, app.page, 'Mouse Row', 64, false);
+    await swipeRoutine(context, app.page, 'Mouse Row', 64, hasTouch(testInfo));
     await expectRevealed(app.page, 'Mouse Row', true);
+    expect(await revealOffset(app.page, 'Mouse Row')).toBe(64);
   });
 
   test('TA-DR-012/013/014/018 dialog names cascade; Cancel/Escape/backdrop write nothing; Cancel focused', async ({
@@ -277,10 +280,7 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
 
     await openDeleteConfirmFromList(app.page, 'Target & <Special>');
     // Click the dimmed backdrop outside the sheet (sheet covers bottom).
-    await app.page.locator('.sheet-backdrop').click({
-      position: { x: 8, y: 8 },
-      force: true,
-    });
+    await app.page.mouse.click(8, 8);
     await expect(confirmDialog(app.page)).toHaveCount(0);
     expect(await committedRevision(app.page)).toBe(revisionBefore);
   });

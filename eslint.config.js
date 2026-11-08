@@ -7,6 +7,9 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     ignores: [
+      // Managed XQ Squad tooling — not app source; #13 left these failing lint.
+      '.cursor/**',
+      '.squad/**',
       'coverage/**',
       'dist/**',
       'node_modules/**',

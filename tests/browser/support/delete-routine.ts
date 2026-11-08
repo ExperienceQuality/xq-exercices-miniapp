@@ -3,7 +3,6 @@ import { expect } from '@playwright/test';
 
 import {
   mouseRelease,
-  readPrimaryRecord,
   type CommittedFitnessRecord,
 } from './session-reordering.js';
 

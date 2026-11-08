@@ -23,7 +23,7 @@
     onCloseReveal: () => void;
   } = $props();
 
-  let offset = $state(0);
+  let dragOffset = $state(0);
   let suppressNextOpenClick = $state(false);
   let gesture = $state<{
     pointerId: number;
@@ -44,9 +44,9 @@
     routine.sessions.length === 1 ? 'session' : 'sessions',
   );
 
-  $effect(() => {
-    offset = revealed ? REVEAL_PX : 0;
-  });
+  // While a gesture is active, follow the finger; otherwise mirror parent
+  // reveal state (writable-derived pattern — no $effect sync).
+  let offset = $derived(gesture ? dragOffset : revealed ? REVEAL_PX : 0);
 
   const clampReveal = (value: number) =>
     Math.min(REVEAL_PX, Math.max(0, value));
@@ -56,24 +56,25 @@
     const wasHorizontal = gesture.axis === 'horizontal';
     const moved = gesture.moved;
     const routineId = gesture.routineId;
+    const finalOffset = dragOffset;
     gesture = null;
     window.removeEventListener('pointermove', onWindowPointerMove);
     window.removeEventListener('pointerup', onWindowPointerUp);
     window.removeEventListener('pointercancel', onWindowPointerCancel);
     if (!wasHorizontal) {
-      offset = revealed ? REVEAL_PX : 0;
+      dragOffset = revealed ? REVEAL_PX : 0;
       return;
     }
     if (moved) suppressNextOpenClick = true;
     if (!commit) {
-      offset = revealed ? REVEAL_PX : 0;
+      dragOffset = revealed ? REVEAL_PX : 0;
       return;
     }
-    if (offset >= SNAP_OPEN_PX) {
-      offset = REVEAL_PX;
+    if (finalOffset >= SNAP_OPEN_PX) {
+      dragOffset = REVEAL_PX;
       onReveal(routineId);
     } else {
-      offset = 0;
+      dragOffset = 0;
       if (revealed) onCloseReveal();
     }
   };
@@ -98,7 +99,7 @@
     event.preventDefault();
     gesture = { ...gesture, moved: true };
     // Leftward only: positive offset reveals Delete under the row.
-    offset = clampReveal(gesture.origin - dx);
+    dragOffset = clampReveal(gesture.origin - dx);
   };
 
   const onWindowPointerUp = (event: PointerEvent) => {
@@ -119,6 +120,7 @@
       )
     )
       return;
+    dragOffset = offset;
     gesture = {
       pointerId: event.pointerId,
       routineId: routine.id,
