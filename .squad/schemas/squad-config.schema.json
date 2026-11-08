@@ -2,11 +2,22 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "XQ Squad Configuration",
   "type": "object",
-  "required": ["name", "version", "release_tag", "config_schema_version", "memory_schema_version", "components", "ownership"],
+  "required": [
+    "name",
+    "version",
+    "release_tag",
+    "config_schema_version",
+    "memory_schema_version",
+    "components",
+    "ownership"
+  ],
   "properties": {
     "name": { "type": "string" },
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
-    "release_tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "release_tag": {
+      "type": "string",
+      "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
     "config_schema_version": { "type": "string" },
     "memory_schema_version": { "type": "string" },
     "repository": { "type": "string", "format": "uri" },
@@ -25,13 +36,34 @@
     "components": {
       "type": "object",
       "properties": {
-        "agents": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } },
-        "skills": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } },
-        "workflows": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } },
-        "schemas": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } },
-        "manifests": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } },
-        "rules": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } },
-        "hooks": { "type": "object", "additionalProperties": { "$ref": "#/definitions/component" } }
+        "agents": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        },
+        "skills": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        },
+        "workflows": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        },
+        "schemas": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        },
+        "manifests": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        },
+        "hooks": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/component" }
+        }
       },
       "additionalProperties": false
     },

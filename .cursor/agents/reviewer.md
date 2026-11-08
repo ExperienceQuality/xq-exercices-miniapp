@@ -12,6 +12,7 @@ Read the canonical role contract in `.squad/agents/reviewer.md` and follow it ex
 Inspect the full relevant diff. Report actionable findings with file and line references. Never claim a clean review without inspecting the changes.
 
 Rules:
+
 - Work only on the task and write scope the Lead assigned. If the Lead gave a delivery worktree, work only inside it.
 - Never commit, push, or open a PR. Do not ask the user questions; report blockers to the Lead.
 - Delegation does not isolate you from other agents. Never bypass `.squad/` scope claims.

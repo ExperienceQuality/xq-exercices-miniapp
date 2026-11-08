@@ -28,8 +28,14 @@ export const REGISTRY_LIMITS = {
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RECORD_FILE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/;
 const SHA_PATTERN = /^([0-9a-f]{40}|[0-9a-f]{64})$/;
-const ISO_UTC_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;
-const STATES = new Set(['PREPARING', 'ACTIVE', 'RECOVERY_REQUIRED', 'RELEASED']);
+const ISO_UTC_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;
+const STATES = new Set([
+  'PREPARING',
+  'ACTIVE',
+  'RECOVERY_REQUIRED',
+  'RELEASED',
+]);
 const LOCK_DIR = '.lock';
 const LOCK_OWNER_FILE = 'owner';
 const RECORD_FIELDS = new Set([
@@ -103,7 +109,11 @@ async function resolveRepository(repositoryPath) {
   }
   const commonDir = await fs.realpath(commonDirOut);
   const repositoryRoot = await fs.realpath(rootOut);
-  return { repositoryRoot, commonDir, registryPath: path.join(commonDir, 'squad', 'run') };
+  return {
+    repositoryRoot,
+    commonDir,
+    registryPath: path.join(commonDir, 'squad', 'run'),
+  };
 }
 
 // Registry control paths must be plain directories (or absent). lstat is
@@ -177,10 +187,7 @@ export function validateClaimRecord(record) {
   if (typeof record.ownerToken !== 'string' || record.ownerToken.length === 0) {
     fail('ownerToken must be a non-empty string');
   }
-  if (
-    !Number.isSafeInteger(record.generation) ||
-    record.generation < 1
-  ) {
+  if (!Number.isSafeInteger(record.generation) || record.generation < 1) {
     fail('generation must be a positive safe integer');
   }
   if (!STATES.has(record.state)) fail('state must be a known lifecycle state');
@@ -191,17 +198,26 @@ export function validateClaimRecord(record) {
       path.resolve(record[key]) !== record[key] ||
       record[key].length > REGISTRY_LIMITS.maxPathChars
     ) {
-      fail(`${key} must be a canonical absolute path within ${REGISTRY_LIMITS.maxPathChars} chars`);
+      fail(
+        `${key} must be a canonical absolute path within ${REGISTRY_LIMITS.maxPathChars} chars`,
+      );
     }
   }
   for (const key of ['branch', 'baseRef']) {
-    if (typeof record[key] !== 'string' || record[key].length === 0 || record[key].length > 256) {
+    if (
+      typeof record[key] !== 'string' ||
+      record[key].length === 0 ||
+      record[key].length > 256
+    ) {
       fail(`${key} must be a non-empty string within 256 chars`);
     }
   }
   // Path/branch binding: a claim is pinned to its own squad branch and its
   // own worktree under the recorded main checkout.
-  if (typeof record.branch === 'string' && typeof record.deliveryId === 'string') {
+  if (
+    typeof record.branch === 'string' &&
+    typeof record.deliveryId === 'string'
+  ) {
     if (record.branch !== `squad/${record.deliveryId}`) {
       fail('branch must be squad/<deliveryId>');
     }
@@ -217,17 +233,25 @@ export function validateClaimRecord(record) {
   ) {
     fail('worktreePath must be <repositoryRoot>/.squad/worktrees/<deliveryId>');
   }
-  if (typeof record.baseCommit !== 'string' || !SHA_PATTERN.test(record.baseCommit)) {
+  if (
+    typeof record.baseCommit !== 'string' ||
+    !SHA_PATTERN.test(record.baseCommit)
+  ) {
     fail('baseCommit must be a SHA-1 or SHA-256 hex');
   }
   if (
     !Array.isArray(record.scope) ||
     record.scope.length > REGISTRY_LIMITS.maxScopeEntries ||
     record.scope.some(
-      (s) => typeof s !== 'string' || s.length === 0 || s.length > REGISTRY_LIMITS.maxPathChars,
+      (s) =>
+        typeof s !== 'string' ||
+        s.length === 0 ||
+        s.length > REGISTRY_LIMITS.maxPathChars,
     )
   ) {
-    fail(`scope must be an array of up to ${REGISTRY_LIMITS.maxScopeEntries} path strings`);
+    fail(
+      `scope must be an array of up to ${REGISTRY_LIMITS.maxScopeEntries} path strings`,
+    );
   } else {
     try {
       normalizeScope(record.scope);
@@ -236,13 +260,19 @@ export function validateClaimRecord(record) {
     }
   }
   for (const key of ['createdAt', 'heartbeatAt']) {
-    if (!isIsoUtc(record[key])) fail(`${key} must be a strict UTC ISO timestamp`);
+    if (!isIsoUtc(record[key]))
+      fail(`${key} must be a strict UTC ISO timestamp`);
   }
   for (const key of ['stoppedConfirmedAt', 'releasedAt']) {
-    if (key in record && !isIsoUtc(record[key])) fail(`${key} must be a strict UTC ISO timestamp`);
+    if (key in record && !isIsoUtc(record[key]))
+      fail(`${key} must be a strict UTC ISO timestamp`);
   }
-  if (!isEvidence(record.approval)) fail('approval must be a {confirmed:true, reference} evidence');
-  if ('stoppedConfirmation' in record && !isEvidence(record.stoppedConfirmation)) {
+  if (!isEvidence(record.approval))
+    fail('approval must be a {confirmed:true, reference} evidence');
+  if (
+    'stoppedConfirmation' in record &&
+    !isEvidence(record.stoppedConfirmation)
+  ) {
     fail('stoppedConfirmation must be a {confirmed:true, reference} evidence');
   }
   if ('failure' in record) {
@@ -259,7 +289,11 @@ export function validateClaimRecord(record) {
     }
   }
   if (record.state === 'RELEASED') {
-    for (const key of ['stoppedConfirmation', 'stoppedConfirmedAt', 'releasedAt']) {
+    for (const key of [
+      'stoppedConfirmation',
+      'stoppedConfirmedAt',
+      'releasedAt',
+    ]) {
       if (!(key in record)) fail(`RELEASED record requires ${key}`);
     }
   }
@@ -291,34 +325,45 @@ async function readRawRecords(registryPath, expectedOwner = null) {
   const recordFiles = [];
   for (const dirent of dirents) {
     if (dirent.name === LOCK_DIR) {
-      if (expectedOwner === null || !dirent.isDirectory()) throw new Blocked('RECOVERY_REQUIRED');
+      if (expectedOwner === null || !dirent.isDirectory())
+        throw new Blocked('RECOVERY_REQUIRED');
       let owner;
       try {
-        owner = await fs.readFile(path.join(registryPath, LOCK_DIR, LOCK_OWNER_FILE), 'utf8');
+        owner = await fs.readFile(
+          path.join(registryPath, LOCK_DIR, LOCK_OWNER_FILE),
+          'utf8',
+        );
       } catch {
         throw new Blocked('RECOVERY_REQUIRED');
       }
       if (owner !== expectedOwner) throw new Blocked('RECOVERY_REQUIRED');
       continue;
     }
-    if (!RECORD_FILE_PATTERN.test(dirent.name) || !dirent.isFile() || dirent.isSymbolicLink()) {
+    if (
+      !RECORD_FILE_PATTERN.test(dirent.name) ||
+      !dirent.isFile() ||
+      dirent.isSymbolicLink()
+    ) {
       throw new Blocked('RECOVERY_REQUIRED');
     }
     recordFiles.push(dirent.name);
   }
-  if (recordFiles.length > REGISTRY_LIMITS.maxRecords) throw new Blocked('RECOVERY_REQUIRED');
+  if (recordFiles.length > REGISTRY_LIMITS.maxRecords)
+    throw new Blocked('RECOVERY_REQUIRED');
   const records = [];
   for (const name of recordFiles) {
     const full = path.join(registryPath, name);
     const stat = await fs.stat(full);
-    if (stat.size > REGISTRY_LIMITS.maxRecordBytes) throw new Blocked('RECOVERY_REQUIRED');
+    if (stat.size > REGISTRY_LIMITS.maxRecordBytes)
+      throw new Blocked('RECOVERY_REQUIRED');
     let parsed;
     try {
       parsed = JSON.parse(await fs.readFile(full, 'utf8'));
     } catch {
       throw new Blocked('RECOVERY_REQUIRED');
     }
-    if (validateClaimRecord(parsed).length > 0) throw new Blocked('RECOVERY_REQUIRED');
+    if (validateClaimRecord(parsed).length > 0)
+      throw new Blocked('RECOVERY_REQUIRED');
     // The record filename is the claim's identity; a mismatched body could
     // otherwise hide a duplicate claim under an alias name.
     if (parsed.deliveryId !== name.slice(0, -'.json'.length)) {
@@ -331,7 +376,8 @@ async function readRawRecords(registryPath, expectedOwner = null) {
 
 export async function readRegistry({ repositoryPath } = {}) {
   try {
-    const { repositoryRoot, commonDir, registryPath } = await resolveRepository(repositoryPath);
+    const { repositoryRoot, commonDir, registryPath } =
+      await resolveRepository(repositoryPath);
     assertControlDir(path.join(commonDir, 'squad'));
     assertControlDir(registryPath);
     const records = await readRawRecords(registryPath);
@@ -355,7 +401,12 @@ export async function readRegistry({ repositoryPath } = {}) {
 // privately, validates token + generation + ACTIVE against raw records, and
 // returns the sanitized claim. Never acquires the mutex, never writes, and
 // never exposes the raw token.
-export async function readOwnedClaim({ repositoryPath, deliveryId, ownerToken, generation } = {}) {
+export async function readOwnedClaim({
+  repositoryPath,
+  deliveryId,
+  ownerToken,
+  generation,
+} = {}) {
   try {
     if (
       typeof repositoryPath !== 'string' ||
@@ -369,7 +420,8 @@ export async function readOwnedClaim({ repositoryPath, deliveryId, ownerToken, g
     ) {
       return error('INVALID_INPUT', 'invalid ownership context');
     }
-    const { repositoryRoot, commonDir, registryPath } = await resolveRepository(repositoryPath);
+    const { repositoryRoot, commonDir, registryPath } =
+      await resolveRepository(repositoryPath);
     assertControlDir(path.join(commonDir, 'squad'));
     assertControlDir(registryPath);
     const records = await readRawRecords(registryPath);
@@ -380,12 +432,22 @@ export async function readOwnedClaim({ repositoryPath, deliveryId, ownerToken, g
       rec.ownerToken !== ownerToken ||
       rec.generation !== generation
     ) {
-      return blocked('OWNER_MISMATCH', 'stale owner token, generation, or state');
+      return blocked(
+        'OWNER_MISMATCH',
+        'stale owner token, generation, or state',
+      );
     }
-    if (rec.repositoryRoot !== await mainWorktreeRoot(repositoryPath)) {
-      return blocked('RECOVERY_REQUIRED', { message: 'claim is bound to a different main checkout' });
+    if (rec.repositoryRoot !== (await mainWorktreeRoot(repositoryPath))) {
+      return blocked('RECOVERY_REQUIRED', {
+        message: 'claim is bound to a different main checkout',
+      });
     }
-    return ok({ record: sanitizeRecord(rec), repositoryRoot, commonDir, registryPath });
+    return ok({
+      record: sanitizeRecord(rec),
+      repositoryRoot,
+      commonDir,
+      registryPath,
+    });
   } catch (err) {
     if (err instanceof Blocked) {
       return err.code === 'INVALID_INPUT'
@@ -396,7 +458,10 @@ export async function readOwnedClaim({ repositoryPath, deliveryId, ownerToken, g
   }
 }
 
-export async function withRegistryLock({ repositoryPath, approval } = {}, operation) {
+export async function withRegistryLock(
+  { repositoryPath, approval } = {},
+  operation,
+) {
   if (!isEvidence(approval)) {
     return blocked('APPROVAL_REQUIRED');
   }
@@ -408,7 +473,9 @@ export async function withRegistryLock({ repositoryPath, approval } = {}, operat
     resolved = await resolveRepository(repositoryPath);
   } catch (err) {
     if (err instanceof Blocked) {
-      return err.code === 'INVALID_INPUT' ? error('INVALID_INPUT', 'not a Git checkout') : blocked(err.code);
+      return err.code === 'INVALID_INPUT'
+        ? error('INVALID_INPUT', 'not a Git checkout')
+        : blocked(err.code);
     }
     return error('RECOVERY_REQUIRED', String(err.message || err));
   }
@@ -423,7 +490,10 @@ export async function withRegistryLock({ repositoryPath, approval } = {}, operat
   // foreign or missing marker is preserved untouched.
   const releaseOwnLock = async () => {
     try {
-      const owner = await fs.readFile(path.join(lockPath, LOCK_OWNER_FILE), 'utf8');
+      const owner = await fs.readFile(
+        path.join(lockPath, LOCK_OWNER_FILE),
+        'utf8',
+      );
       if (owner !== nonce) return false; // never remove a foreign mutex
       await fs.unlink(path.join(lockPath, LOCK_OWNER_FILE));
       await fs.rmdir(lockPath);
@@ -459,14 +529,16 @@ export async function withRegistryLock({ repositoryPath, approval } = {}, operat
         return error('INVALID_INPUT', 'record target is a symlink');
       }
     } catch (err) {
-      if (err.code !== 'ENOENT') return error('RECOVERY_REQUIRED', String(err.message || err));
+      if (err.code !== 'ENOENT')
+        return error('RECOVERY_REQUIRED', String(err.message || err));
       // ENOENT: new record file
     }
     const tmp = `${target}.${nonce}.tmp`;
     try {
       await fs.writeFile(tmp, data, { flag: 'wx' });
     } catch (err) {
-      if (err.code === 'EEXIST') return error('INVALID_INPUT', 'temp file collision');
+      if (err.code === 'EEXIST')
+        return error('INVALID_INPUT', 'temp file collision');
       throw err;
     }
     await fs.rename(tmp, target);
@@ -518,7 +590,10 @@ export async function withRegistryLock({ repositoryPath, approval } = {}, operat
   if (callbackError !== undefined) throw callbackError;
   if (registryError !== undefined) {
     if (registryError instanceof Blocked) return blocked(registryError.code);
-    return error('RECOVERY_REQUIRED', String(registryError.message || registryError));
+    return error(
+      'RECOVERY_REQUIRED',
+      String(registryError.message || registryError),
+    );
   }
   // If our mutex could not be released or its ownership changed underneath
   // us, the operation must not report success. The foreign marker stays.

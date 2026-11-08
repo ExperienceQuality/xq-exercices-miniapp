@@ -43,14 +43,14 @@ AGENTS.md                          # Always-on Lead instructions, managed sectio
 
 ## Roles and authority
 
-| Role | Responsibility |
-| --- | --- |
-| Agent Lead | Main agent session, never a subagent. Owns intake through delivery. |
-| `analyst` | Repository discovery and impact analysis (read-only). |
-| `implementer` | Assigned code changes following repository conventions. |
-| `tester` | Relevant checks and test execution. |
-| `reviewer` | Change review and risk identification (read-only in Cursor). |
-| `memory-maintainer` | Durable memory reconciliation and update. |
+| Role                | Responsibility                                                      |
+| ------------------- | ------------------------------------------------------------------- |
+| Agent Lead          | Main agent session, never a subagent. Owns intake through delivery. |
+| `analyst`           | Repository discovery and impact analysis (read-only).               |
+| `implementer`       | Assigned code changes following repository conventions.             |
+| `tester`            | Relevant checks and test execution.                                 |
+| `reviewer`          | Change review and risk identification (read-only in Cursor).        |
+| `memory-maintainer` | Durable memory reconciliation and update.                           |
 
 The Lead never commits, pushes, or opens a PR unless explicitly asked in the
 session. Before any authorized push or PR, it fetches the configured remote

@@ -42,13 +42,16 @@ Report exactly one of:
 
 ```markdown
 ## Outcome
+
 UPDATED | UNCHANGED | BLOCKED
 
 ## Changes
+
 - `.squad/MEMORY.md` — summary of update.
 - `.squad/memory/records.ndjson` — records added or superseded.
 
 ## Provenance
+
 - Source: branch/commit/PR
 - Reason: ...
 ```

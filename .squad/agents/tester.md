@@ -21,14 +21,17 @@ Run relevant repository checks and report actual results.
 
 ```markdown
 ## Checks run
-| Check | Command | Status |
-|---|---|---|
+
+| Check      | Command    | Status |
+| ---------- | ---------- | ------ |
 | Unit tests | `npm test` | passed |
 
 ## Checks skipped
+
 - Reason: ...
 
 ## Failures
+
 - Command: ...
 - Summary: ...
 ```

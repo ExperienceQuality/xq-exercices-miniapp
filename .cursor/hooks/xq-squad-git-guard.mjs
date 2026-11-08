@@ -4,7 +4,8 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { readStdinJson, respond } from './xq-squad-hook-io.mjs';
 
-export const GUARDED = /\bgit\b[^|;&]*\s(commit|push)\b|\bgh\s+(pr\s+create|release\s+create)\b/;
+export const GUARDED =
+  /\bgit\b[^|;&]*\s(commit|push)\b|\bgh\s+(pr\s+create|release\s+create)\b/;
 
 export function decide(input) {
   const command = typeof input?.command === 'string' ? input.command : '';
@@ -17,6 +18,9 @@ export function decide(input) {
   };
 }
 
-if (process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
+if (
+  process.argv[1] &&
+  pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url
+) {
   respond(decide(await readStdinJson()));
 }

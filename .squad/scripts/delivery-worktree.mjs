@@ -40,11 +40,15 @@ export async function gitTry(cwd, args) {
 
 export async function gitBlob(cwd, spec) {
   try {
-    const { stdout } = await execFileP('git', ['-C', cwd, 'cat-file', '-p', spec], {
-      encoding: 'buffer',
-      env: GIT_ENV,
-      maxBuffer: 8 * 1024 * 1024,
-    });
+    const { stdout } = await execFileP(
+      'git',
+      ['-C', cwd, 'cat-file', '-p', spec],
+      {
+        encoding: 'buffer',
+        env: GIT_ENV,
+        maxBuffer: 8 * 1024 * 1024,
+      },
+    );
     return stdout;
   } catch {
     return null;
@@ -61,7 +65,12 @@ export async function resolveRepository(repositoryPath) {
 }
 
 export async function mainWorktreeRoot(repositoryPath) {
-  const out = await gitOut(repositoryPath, ['worktree', 'list', '--porcelain', '-z']);
+  const out = await gitOut(repositoryPath, [
+    'worktree',
+    'list',
+    '--porcelain',
+    '-z',
+  ]);
   const first = out.split('\0').find((t) => t.startsWith('worktree '));
   return first ? realpathSync(first.slice('worktree '.length)) : null;
 }
@@ -78,8 +87,12 @@ export async function resolveCommit(cwd, ref) {
 
 export async function branchExists(cwd, branch) {
   return (
-    (await gitTry(cwd, ['rev-parse', '--verify', '--end-of-options', `refs/heads/${branch}`])) !==
-    null
+    (await gitTry(cwd, [
+      'rev-parse',
+      '--verify',
+      '--end-of-options',
+      `refs/heads/${branch}`,
+    ])) !== null
   );
 }
 
@@ -95,8 +108,16 @@ export async function findBaseSymlinkAlias(cwd, baseCommit, scope) {
       if (out && out.split('\0')[0].startsWith('120000 ')) return p;
     }
     if (entry.endsWith('/')) {
-      const out = await gitTry(cwd, ['ls-tree', '-r', '-z', baseCommit, '--', entry]);
-      if (out && out.split('\0').some((l) => l.startsWith('120000 '))) return entry;
+      const out = await gitTry(cwd, [
+        'ls-tree',
+        '-r',
+        '-z',
+        baseCommit,
+        '--',
+        entry,
+      ]);
+      if (out && out.split('\0').some((l) => l.startsWith('120000 ')))
+        return entry;
     }
   }
   return null;
@@ -194,7 +215,10 @@ export function checkExcludeShape(commonDir) {
       return blocked('RECOVERY_REQUIRED', `cannot inspect ${p}`);
     }
     if (st.isSymbolicLink() || (dir ? !st.isDirectory() : !st.isFile())) {
-      return blocked('RECOVERY_REQUIRED', `${p} is not a plain ${dir ? 'directory' : 'file'}`);
+      return blocked(
+        'RECOVERY_REQUIRED',
+        `${p} is not a plain ${dir ? 'directory' : 'file'}`,
+      );
     }
   }
   return null;
@@ -213,17 +237,24 @@ export async function ensureExcludeLine(commonDir) {
     content = await fs.readFile(excludePath, 'utf8');
   } catch (err) {
     if (err.code !== 'ENOENT') {
-      return blocked('RECOVERY_REQUIRED', `cannot read exclude: ${err.message}`);
+      return blocked(
+        'RECOVERY_REQUIRED',
+        `cannot read exclude: ${err.message}`,
+      );
     }
   }
   // Match lines regardless of LF/CRLF endings without rewriting them.
-  if (content.split('\n').some((l) => l.replace(/\r$/, '') === EXCLUDE_LINE)) return null;
+  if (content.split('\n').some((l) => l.replace(/\r$/, '') === EXCLUDE_LINE))
+    return null;
   try {
     await fs.mkdir(infoDir, { recursive: true });
     const separator = content && !content.endsWith('\n') ? '\n' : '';
     await fs.appendFile(excludePath, separator + EXCLUDE_LINE + '\n');
   } catch (err) {
-    return blocked('RECOVERY_REQUIRED', `cannot append exclude: ${err.message}`);
+    return blocked(
+      'RECOVERY_REQUIRED',
+      `cannot append exclude: ${err.message}`,
+    );
   }
   return null;
 }

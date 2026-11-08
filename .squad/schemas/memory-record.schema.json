@@ -11,7 +11,13 @@
     },
     "type": {
       "type": "string",
-      "enum": ["lesson", "observation", "delivery_event", "decision", "rejected"]
+      "enum": [
+        "lesson",
+        "observation",
+        "delivery_event",
+        "decision",
+        "rejected"
+      ]
     },
     "topic": { "type": "string" },
     "summary": { "type": "string", "maxLength": 500 },

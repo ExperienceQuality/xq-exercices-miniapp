@@ -29,7 +29,8 @@ function foldedSegs(segs) {
 function isInternalSegs(fSegs) {
   if (fSegs.includes('.git')) return true;
   return INTERNAL_TREES.some(
-    (tree) => fSegs.length >= tree.length && tree.every((s, i) => fSegs[i] === s),
+    (tree) =>
+      fSegs.length >= tree.length && tree.every((s, i) => fSegs[i] === s),
   );
 }
 
@@ -51,10 +52,12 @@ export function parseScopeEntry(entry) {
   const segs = body.split('/');
   for (const seg of segs) {
     if (seg === '') invalid(entry, 'empty or doubled path segments');
-    if (seg === '.' || seg === '..') invalid(entry, 'non-canonical or traversal segments');
+    if (seg === '.' || seg === '..')
+      invalid(entry, 'non-canonical or traversal segments');
   }
   const keySegs = foldedSegs(segs);
-  if (isInternalSegs(keySegs)) invalid(entry, 'internal .git/.squad runtime path');
+  if (isInternalSegs(keySegs))
+    invalid(entry, 'internal .git/.squad runtime path');
   return { orig: entry, segs, keySegs, isTree, isRoot: false };
 }
 
@@ -112,7 +115,15 @@ export function findScopeConflicts(left, right) {
     }
   }
   pairs.sort((a, b) =>
-    a.left < b.left ? -1 : a.left > b.left ? 1 : a.right < b.right ? -1 : a.right > b.right ? 1 : 0,
+    a.left < b.left
+      ? -1
+      : a.left > b.left
+        ? 1
+        : a.right < b.right
+          ? -1
+          : a.right > b.right
+            ? 1
+            : 0,
   );
   return pairs;
 }
@@ -148,13 +159,17 @@ function coveredByScope(entries, keySegs) {
   return entries.some(
     (e) =>
       e.isRoot ||
-      (e.isTree ? isPrefixSegs(e.keySegs, keySegs) : keySegs.join('/') === e.keySegs.join('/')),
+      (e.isTree
+        ? isPrefixSegs(e.keySegs, keySegs)
+        : keySegs.join('/') === e.keySegs.join('/')),
   );
 }
 
 async function checkWritePath(root, entries, raw) {
-  if (typeof raw !== 'string' || raw.length === 0) return 'not a non-empty string';
-  if (FORBIDDEN_CHARS.test(raw)) return 'control, backslash, or glob characters';
+  if (typeof raw !== 'string' || raw.length === 0)
+    return 'not a non-empty string';
+  if (FORBIDDEN_CHARS.test(raw))
+    return 'control, backslash, or glob characters';
   let lexSegs;
   if (path.isAbsolute(raw)) {
     const rel = path.relative(root, raw);
@@ -187,11 +202,14 @@ async function checkWritePath(root, entries, raw) {
     return 'ambiguous case/NFC path alias';
   }
   const realKey = foldedSegs(realRel.split(path.sep));
-  if (isInternalSegs(realKey)) return 'alias resolves into internal runtime path';
+  if (isInternalSegs(realKey))
+    return 'alias resolves into internal runtime path';
   // Both the written path and its resolved target must be inside scope;
   // a covered real target never broadens access to an uncovered alias.
-  if (!coveredByScope(entries, lexKey)) return 'lexical path outside declared scope';
-  if (!coveredByScope(entries, realKey)) return 'resolved target outside declared scope';
+  if (!coveredByScope(entries, lexKey))
+    return 'lexical path outside declared scope';
+  if (!coveredByScope(entries, realKey))
+    return 'resolved target outside declared scope';
   return null;
 }
 
@@ -202,10 +220,18 @@ async function checkWritePath(root, entries, raw) {
 export async function validateWritePaths({ worktreePath, paths, scope } = {}) {
   try {
     if (typeof worktreePath !== 'string' || !path.isAbsolute(worktreePath)) {
-      return { status: 'ERROR', code: 'INVALID_INPUT', message: 'worktreePath must be absolute' };
+      return {
+        status: 'ERROR',
+        code: 'INVALID_INPUT',
+        message: 'worktreePath must be absolute',
+      };
     }
     if (!Array.isArray(paths) || !Array.isArray(scope)) {
-      return { status: 'ERROR', code: 'INVALID_INPUT', message: 'paths and scope must be arrays' };
+      return {
+        status: 'ERROR',
+        code: 'INVALID_INPUT',
+        message: 'paths and scope must be arrays',
+      };
     }
     const root = await fs.realpath(worktreePath);
     const entries = scope.map(parseScopeEntry);
@@ -219,6 +245,10 @@ export async function validateWritePaths({ worktreePath, paths, scope } = {}) {
     }
     return { status: 'OK', code: 'OK' };
   } catch (err) {
-    return { status: 'ERROR', code: 'INVALID_INPUT', message: String(err.message || err) };
+    return {
+      status: 'ERROR',
+      code: 'INVALID_INPUT',
+      message: String(err.message || err),
+    };
   }
 }

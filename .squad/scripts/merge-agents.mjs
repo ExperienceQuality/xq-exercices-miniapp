@@ -18,7 +18,9 @@ function stripManagedSection(content) {
   if (startIdx === -1) return content;
   const endIdx = content.indexOf(MANAGED_END, startIdx);
   if (endIdx === -1) return content.slice(0, startIdx);
-  return content.slice(0, startIdx) + content.slice(endIdx + MANAGED_END.length);
+  return (
+    content.slice(0, startIdx) + content.slice(endIdx + MANAGED_END.length)
+  );
 }
 
 function extractManagedSection(content) {
@@ -38,11 +40,14 @@ function normalizeConsumerContent(content) {
 
 export function mergeAgentsContent(existing, distributed) {
   const newManaged = extractManagedSection(distributed);
-  if (!newManaged) throw new Error('Distributed AGENTS.md is missing a managed section');
+  if (!newManaged)
+    throw new Error('Distributed AGENTS.md is missing a managed section');
 
   let consumerContent = stripManagedSection(existing);
   if (consumerContent.includes(LEGACY_LEAD_BLOCK)) {
-    consumerContent = normalizeConsumerContent(consumerContent.replace(LEGACY_LEAD_BLOCK, ''));
+    consumerContent = normalizeConsumerContent(
+      consumerContent.replace(LEGACY_LEAD_BLOCK, ''),
+    );
   }
 
   if (!consumerContent.trim()) return `${newManaged}\n`;
@@ -52,7 +57,11 @@ export function mergeAgentsContent(existing, distributed) {
 export async function mergeAgents(existingPath, distributedPath, outputPath) {
   const existing = await readFile(existingPath, 'utf8');
   const distributed = await readFile(distributedPath, 'utf8');
-  await writeFile(outputPath, mergeAgentsContent(existing, distributed), 'utf8');
+  await writeFile(
+    outputPath,
+    mergeAgentsContent(existing, distributed),
+    'utf8',
+  );
 }
 
 async function main() {

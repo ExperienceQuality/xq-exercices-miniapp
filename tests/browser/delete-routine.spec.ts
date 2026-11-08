@@ -27,9 +27,7 @@ import {
 const hasTouch = (testInfo: { project: { use: { hasTouch?: boolean } } }) =>
   Boolean(testInfo.project.use.hasTouch);
 
-const noHorizontalOverflow = async (
-  page: import('@playwright/test').Page,
-) => {
+const noHorizontalOverflow = async (page: import('@playwright/test').Page) => {
   const metrics = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
@@ -60,7 +58,9 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
       hasTouch(testInfo),
     );
     const dialog = confirmDialog(app.page);
-    await expect(dialog.getByRole('heading', { name: 'Delete routine?' })).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: 'Delete routine?' }),
+    ).toBeVisible();
     await expect(dialog).toContainText('Gone Routine');
     await expect(dialog).toContainText('sessions');
     await confirmRoutineDelete(app.page);
@@ -109,9 +109,7 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     const useTouch = hasTouch(testInfo);
 
     await swipeRoutine(context, app.page, 'Threshold', 20, useTouch);
-    await expect
-      .poll(async () => revealOffset(app.page, 'Threshold'))
-      .toBe(0);
+    await expect.poll(async () => revealOffset(app.page, 'Threshold')).toBe(0);
 
     await swipeRoutine(context, app.page, 'Threshold', 40, useTouch);
     await expectRevealed(app.page, 'Threshold', true);
@@ -121,9 +119,7 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
 
     // Rightward: negative left distance.
     await swipeRoutine(context, app.page, 'Threshold', -48, useTouch);
-    await expect
-      .poll(async () => revealOffset(app.page, 'Threshold'))
-      .toBe(0);
+    await expect.poll(async () => revealOffset(app.page, 'Threshold')).toBe(0);
   });
 
   test('TA-DR-006/007 vertical and diagonal resolve to one axis', async ({
@@ -230,9 +226,7 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     await swipeRoutine(context, app.page, 'Cancel Me', 64, hasTouch(testInfo), {
       cancel: true,
     });
-    await expect
-      .poll(async () => revealOffset(app.page, 'Cancel Me'))
-      .toBe(0);
+    await expect.poll(async () => revealOffset(app.page, 'Cancel Me')).toBe(0);
     expect(await committedRevision(app.page)).toBe(revisionBefore);
   });
 
@@ -265,7 +259,9 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
 
     await openDeleteConfirmFromList(app.page, 'Target & <Special>');
     const dialog = confirmDialog(app.page);
-    await expect(dialog.getByRole('heading', { name: 'Delete routine?' })).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: 'Delete routine?' }),
+    ).toBeVisible();
     await expect(dialog).toContainText('Target & <Special>');
     await expect(dialog).toContainText('progress snapshots');
     await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
@@ -327,7 +323,9 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
     ).toBeVisible();
     await app.page.getByRole('button', { name: 'Delete routine' }).click();
     const dialog = confirmDialog(app.page);
-    await expect(dialog.getByRole('heading', { name: 'Delete routine?' })).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: 'Delete routine?' }),
+    ).toBeVisible();
     await confirmRoutineDelete(app.page);
     await expect(
       app.page.getByRole('heading', { name: 'Routines' }),
@@ -385,9 +383,9 @@ test.describe('Delete routine — list gesture and confirm (FIT-112…FIT-117)',
       'A11y One',
     ).boundingBox();
     expect(deleteBox).toBeTruthy();
-    expect(Math.min(deleteBox!.width, deleteBox!.height)).toBeGreaterThanOrEqual(
-      52,
-    );
+    expect(
+      Math.min(deleteBox!.width, deleteBox!.height),
+    ).toBeGreaterThanOrEqual(52);
 
     await app.page.emulateMedia({ reducedMotion: 'reduce' });
     await swipeRoutine(context, app.page, 'A11y One', 64, hasTouch(testInfo));

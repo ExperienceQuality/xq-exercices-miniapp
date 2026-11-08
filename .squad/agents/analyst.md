@@ -22,17 +22,21 @@ Inspect repository context and return findings with evidence.
 ## Findings
 
 ### Affected components
+
 - `path/to/file` — purpose and relevance.
 
 ### Conventions
+
 - Language/framework: ...
 - Build command: ...
 - Test command: ...
 - Lint command: ...
 
 ### Risks
+
 - Risk: ... | Mitigation: ...
 
 ### References
+
 - `path/to/file:line` — reason.
 ```

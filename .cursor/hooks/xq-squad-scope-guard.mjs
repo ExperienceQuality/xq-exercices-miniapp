@@ -6,10 +6,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readStdinJson, respond, projectDir, deliveryIdOf, HOOK_ROOT } from './xq-squad-hook-io.mjs';
+import {
+  readStdinJson,
+  respond,
+  projectDir,
+  deliveryIdOf,
+  HOOK_ROOT,
+} from './xq-squad-hook-io.mjs';
 
 function targetPath(input) {
-  const ti = input?.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
+  const ti =
+    input?.tool_input && typeof input.tool_input === 'object'
+      ? input.tool_input
+      : {};
   const p = ti.file_path ?? ti.path ?? ti.target_file ?? input?.file_path;
   return typeof p === 'string' && p.length > 0 ? p : null;
 }
@@ -50,13 +59,23 @@ export async function decide(input, { helpersRoot = HOOK_ROOT } = {}) {
 
   let helpers;
   try {
-    const load = (m) => import(pathToFileURL(path.join(helpersRoot, '.squad', 'scripts', m)).href);
-    helpers = { registry: await load('delivery-registry.mjs'), scope: await load('delivery-scope.mjs') };
+    const load = (m) =>
+      import(
+        pathToFileURL(path.join(helpersRoot, '.squad', 'scripts', m)).href
+      );
+    helpers = {
+      registry: await load('delivery-registry.mjs'),
+      scope: await load('delivery-scope.mjs'),
+    };
   } catch {
-    return sessionDelivery ? deny('delivery helpers unavailable inside a delivery worktree') : { permission: 'allow' };
+    return sessionDelivery
+      ? deny('delivery helpers unavailable inside a delivery worktree')
+      : { permission: 'allow' };
   }
 
-  const reg = await helpers.registry.readRegistry({ repositoryPath: realish(project) });
+  const reg = await helpers.registry.readRegistry({
+    repositoryPath: realish(project),
+  });
   if (reg.status !== 'OK') {
     return sessionDelivery || deliveryIdOf(file)
       ? deny(`claim registry is indeterminate (${reg.code})`)
@@ -67,26 +86,40 @@ export async function decide(input, { helpersRoot = HOOK_ROOT } = {}) {
   if (sessionDelivery) {
     const own = active.find((r) => r.deliveryId === sessionDelivery);
     if (!own) return deny(`delivery ${sessionDelivery} has no ACTIVE claim`);
-    if (!inside(file, own.worktreePath)) return deny(`${raw} is outside delivery worktree ${own.worktreePath}`);
+    if (!inside(file, own.worktreePath))
+      return deny(`${raw} is outside delivery worktree ${own.worktreePath}`);
   }
 
   const owner = active.find((r) => inside(file, r.worktreePath));
   if (!owner) {
-    return deliveryIdOf(file) ? deny(`${raw} is in an unclaimed delivery worktree`) : { permission: 'allow' };
+    return deliveryIdOf(file)
+      ? deny(`${raw} is in an unclaimed delivery worktree`)
+      : { permission: 'allow' };
   }
-  const res = await helpers.scope.validateWritePaths({ worktreePath: owner.worktreePath, paths: [file], scope: owner.scope });
+  const res = await helpers.scope.validateWritePaths({
+    worktreePath: owner.worktreePath,
+    paths: [file],
+    scope: owner.scope,
+  });
   if (res.status === 'OK') return { permission: 'allow' };
   const reason = res.violations?.[0]?.reason || res.message || res.code;
-  return deny(`${raw} is outside the claimed scope of ${owner.deliveryId} (${reason})`);
+  return deny(
+    `${raw} is outside the claimed scope of ${owner.deliveryId} (${reason})`,
+  );
 }
 
-if (process.argv[1] && pathToFileURL(fs.realpathSync(process.argv[1])).href === import.meta.url) {
+if (
+  process.argv[1] &&
+  pathToFileURL(fs.realpathSync(process.argv[1])).href === import.meta.url
+) {
   const input = await readStdinJson();
   let out;
   try {
     out = await decide(input);
   } catch (err) {
-    out = deliveryIdOf(projectDir(input)) ? deny(`hook error: ${err.message}`) : { permission: 'allow' };
+    out = deliveryIdOf(projectDir(input))
+      ? deny(`hook error: ${err.message}`)
+      : { permission: 'allow' };
   }
   respond(out);
 }

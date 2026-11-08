@@ -7,17 +7,28 @@ import { dirname, join, basename } from 'node:path';
 export const SQUAD_HOOK_MARKER = '.cursor/hooks/xq-squad-';
 
 const isSquadEntry = (entry) =>
-  entry && typeof entry === 'object' && typeof entry.command === 'string' && entry.command.includes(SQUAD_HOOK_MARKER);
+  entry &&
+  typeof entry === 'object' &&
+  typeof entry.command === 'string' &&
+  entry.command.includes(SQUAD_HOOK_MARKER);
 
 export function mergeHooksConfig(existing, distributed) {
-  const result = { ...existing, version: existing.version ?? distributed.version };
+  const result = {
+    ...existing,
+    version: existing.version ?? distributed.version,
+  };
   const hooks = {};
   for (const [event, entries] of Object.entries(existing.hooks || {})) {
-    const kept = Array.isArray(entries) ? entries.filter((e) => !isSquadEntry(e)) : entries;
+    const kept = Array.isArray(entries)
+      ? entries.filter((e) => !isSquadEntry(e))
+      : entries;
     if (!Array.isArray(kept) || kept.length) hooks[event] = kept;
   }
   for (const [event, entries] of Object.entries(distributed.hooks || {})) {
-    hooks[event] = [...(Array.isArray(hooks[event]) ? hooks[event] : []), ...entries];
+    hooks[event] = [
+      ...(Array.isArray(hooks[event]) ? hooks[event] : []),
+      ...entries,
+    ];
   }
   result.hooks = hooks;
   return result;
@@ -25,7 +36,11 @@ export function mergeHooksConfig(existing, distributed) {
 
 // Returns { status: 'merged' | 'created' | 'conflict', reason? }. An unparsable
 // consumer file is never rewritten; the distributed copy is written next to it.
-export async function mergeCursorHooks(existingPath, distributedPath, outputPath) {
+export async function mergeCursorHooks(
+  existingPath,
+  distributedPath,
+  outputPath,
+) {
   const distributed = JSON.parse(await readFile(distributedPath, 'utf8'));
   let text = null;
   try {
@@ -37,13 +52,24 @@ export async function mergeCursorHooks(existingPath, distributedPath, outputPath
     let existing;
     try {
       existing = JSON.parse(text);
-      if (!existing || typeof existing !== 'object' || Array.isArray(existing)) throw new Error('not an object');
-      if (existing.hooks !== undefined && (typeof existing.hooks !== 'object' || Array.isArray(existing.hooks))) {
+      if (!existing || typeof existing !== 'object' || Array.isArray(existing))
+        throw new Error('not an object');
+      if (
+        existing.hooks !== undefined &&
+        (typeof existing.hooks !== 'object' || Array.isArray(existing.hooks))
+      ) {
         throw new Error('hooks is not an object');
       }
     } catch (err) {
-      await writeFile(`${existingPath}.squad-upstream`, JSON.stringify(distributed, null, 2) + '\n', 'utf8');
-      return { status: 'conflict', reason: `consumer hooks.json is not valid hooks config (${err.message})` };
+      await writeFile(
+        `${existingPath}.squad-upstream`,
+        JSON.stringify(distributed, null, 2) + '\n',
+        'utf8',
+      );
+      return {
+        status: 'conflict',
+        reason: `consumer hooks.json is not valid hooks config (${err.message})`,
+      };
     }
     merged = mergeHooksConfig(existing, distributed);
     status = 'merged';
@@ -58,9 +84,15 @@ export async function mergeCursorHooks(existingPath, distributedPath, outputPath
 
 async function main() {
   const [existingPath, distributedPath, outputPath] = process.argv.slice(2);
-  const res = await mergeCursorHooks(existingPath, distributedPath, outputPath || existingPath);
+  const res = await mergeCursorHooks(
+    existingPath,
+    distributedPath,
+    outputPath || existingPath,
+  );
   if (res.status === 'conflict') {
-    console.error(`Conflict: ${existingPath} ${res.reason}; upstream written to ${existingPath}.squad-upstream`);
+    console.error(
+      `Conflict: ${existingPath} ${res.reason}; upstream written to ${existingPath}.squad-upstream`,
+    );
     process.exit(1);
   }
 }

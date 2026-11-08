@@ -20,11 +20,13 @@ Inspect the relevant diff and report actionable findings.
 
 ```markdown
 ## Findings
-| Severity | Location | Issue | Fix |
-|---|---|---|---|
-| required | `file:line` | ... | ... |
+
+| Severity | Location    | Issue | Fix |
+| -------- | ----------- | ----- | --- |
+| required | `file:line` | ...   | ... |
 
 ## Review status
+
 - Correctness: ...
 - Tests verified: yes / no / partial
 - Overall: approve / request changes / cannot complete

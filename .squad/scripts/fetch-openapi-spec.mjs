@@ -54,7 +54,10 @@ function ghApi(endpoint, { raw = false } = {}) {
   const args = ['api', endpoint];
   if (raw) args.push('-H', 'Accept: application/vnd.github.raw');
   try {
-    const out = execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = execFileSync('gh', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     return raw ? out : JSON.parse(out);
   } catch (err) {
     const stderr = (err.stderr || '').toString().trim();
@@ -74,7 +77,9 @@ async function httpApi(endpoint, { raw = false, token } = {}) {
     const body = (await res.text()).slice(0, 200);
     if (res.status === 404) fail(`not found: ${endpoint}`);
     if (res.status === 401 || res.status === 403) {
-      fail(`GitHub API ${res.status} for ${endpoint} — install gh or set GH_TOKEN/GITHUB_TOKEN`);
+      fail(
+        `GitHub API ${res.status} for ${endpoint} — install gh or set GH_TOKEN/GITHUB_TOKEN`,
+      );
     }
     fail(`GitHub API ${res.status} for ${endpoint}: ${body}`);
   }
@@ -87,7 +92,11 @@ function encodePath(p) {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const opts = { out: 'openapi', ref: null, repo: process.env.XQ_OPENAPI_REPO || DEFAULT_REPO };
+  const opts = {
+    out: 'openapi',
+    ref: null,
+    repo: process.env.XQ_OPENAPI_REPO || DEFAULT_REPO,
+  };
   let service = null;
   let all = false;
   let list = false;
@@ -106,11 +115,17 @@ async function main() {
   }
   if (!service && !all && !list) fail('no service given\n\n' + usage);
   if (all && service) fail('pass either <service> or --all, not both');
-  if (opts.ref === undefined || opts.out === undefined || opts.repo === undefined) {
+  if (
+    opts.ref === undefined ||
+    opts.out === undefined ||
+    opts.repo === undefined
+  ) {
     fail('missing value for a flag');
   }
-  if (service && !isValidService(service)) fail(`invalid service name: ${service}`);
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(opts.repo)) fail(`invalid repo: ${opts.repo}`);
+  if (service && !isValidService(service))
+    fail(`invalid service name: ${service}`);
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(opts.repo))
+    fail(`invalid repo: ${opts.repo}`);
   if (path.isAbsolute(opts.out) || opts.out.split(/[\\/]+/).includes('..')) {
     fail(`--out must be a repo-relative path: ${opts.out}`);
   }
@@ -120,19 +135,29 @@ async function main() {
   const api = (ep, o) => (useGh ? ghApi(ep, o) : httpApi(ep, { ...o, token }));
 
   const ref = opts.ref || (await api(`repos/${opts.repo}`)).default_branch;
-  const refPath = (p) => `repos/${opts.repo}/contents/${encodePath(p)}?ref=${encodeURIComponent(ref)}`;
+  const refPath = (p) =>
+    `repos/${opts.repo}/contents/${encodePath(p)}?ref=${encodeURIComponent(ref)}`;
 
   // Resolve once for provenance reporting.
-  const sha = ((await api(`repos/${opts.repo}/commits/${encodeURIComponent(ref)}`)).sha || '').slice(0, 12);
+  const sha = (
+    (await api(`repos/${opts.repo}/commits/${encodeURIComponent(ref)}`)).sha ||
+    ''
+  ).slice(0, 12);
 
   async function servicesWithSpec() {
     const entries = await api(refPath(SPEC_DIR));
-    if (!Array.isArray(entries)) fail(`${SPEC_DIR}/ is not a directory at ref ${ref}`);
-    const dirs = entries.filter((e) => e.type === 'dir' && isValidService(e.name));
+    if (!Array.isArray(entries))
+      fail(`${SPEC_DIR}/ is not a directory at ref ${ref}`);
+    const dirs = entries.filter(
+      (e) => e.type === 'dir' && isValidService(e.name),
+    );
     const found = [];
     for (const d of dirs) {
       const files = await api(refPath(`${SPEC_DIR}/${d.name}`));
-      if (Array.isArray(files) && files.some((f) => f.type === 'file' && f.name === SPEC_FILE)) {
+      if (
+        Array.isArray(files) &&
+        files.some((f) => f.type === 'file' && f.name === SPEC_FILE)
+      ) {
         found.push(d.name);
       }
     }
@@ -142,12 +167,14 @@ async function main() {
   if (list) {
     const names = await servicesWithSpec();
     for (const n of names) console.log(n);
-    if (names.length === 0) console.error(`no ${SPEC_FILE} found under ${SPEC_DIR}/ at ${ref}`);
+    if (names.length === 0)
+      console.error(`no ${SPEC_FILE} found under ${SPEC_DIR}/ at ${ref}`);
     return;
   }
 
   const services = all ? await servicesWithSpec() : [service];
-  if (services.length === 0) fail(`no services with ${SPEC_FILE} at ref ${ref}`);
+  if (services.length === 0)
+    fail(`no services with ${SPEC_FILE} at ref ${ref}`);
 
   const outRoot = path.join(repoRoot(), opts.out);
   for (const svc of services) {
@@ -156,7 +183,9 @@ async function main() {
     const dest = path.join(outRoot, svc, SPEC_FILE);
     await mkdir(path.dirname(dest), { recursive: true });
     await writeFile(dest, text);
-    console.log(`${svc}: ${path.relative(repoRoot(), dest)} (${opts.repo}@${sha})`);
+    console.log(
+      `${svc}: ${path.relative(repoRoot(), dest)} (${opts.repo}@${sha})`,
+    );
   }
 }
 

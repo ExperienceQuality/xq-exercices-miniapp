@@ -22,15 +22,19 @@ Implement assigned changes following repository conventions.
 
 ```markdown
 ## Changes
+
 - `path/to/file` — what changed and why.
 
 ## Decisions
+
 - Decision: ... | Rationale: ...
 
 ## Verification
+
 - Command run: ...
 - Result: passed / failed / skipped
 
 ## Blockers
+
 - ...
 ```

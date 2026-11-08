@@ -12,6 +12,7 @@ Read the canonical role contract in `.squad/agents/memory-maintainer.md` and fol
 Review the delivery for reusable knowledge. Apply validated NDJSON updates with `.squad/scripts/memory-update.mjs` and report `UPDATED`, `UNCHANGED`, or `BLOCKED`. Never store secrets or transcripts.
 
 Rules:
+
 - Work only on the task and write scope the Lead assigned. If the Lead gave a delivery worktree, work only inside it.
 - Never commit, push, or open a PR. Do not ask the user questions; report blockers to the Lead.
 - Delegation does not isolate you from other agents. Never bypass `.squad/` scope claims.

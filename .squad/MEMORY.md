@@ -29,4 +29,4 @@ This file holds canonical, human-readable knowledge for the repository. Update i
 
 ## Lessons
 
-*Summarize reusable lessons. Detailed structured records go in `.squad/memory/` as NDJSON.*
+_Summarize reusable lessons. Detailed structured records go in `.squad/memory/` as NDJSON._
