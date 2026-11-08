@@ -63,6 +63,13 @@ export function createRoutine(
   return run(document, { kind: 'create-routine', routine });
 }
 
+export function deleteRoutine(
+  document: FitnessDocumentV2,
+  routineId: string,
+): CommandResult {
+  return run(document, { kind: 'delete-routine', routineId });
+}
+
 export function addSession(
   document: FitnessDocumentV2,
   routineId: string,

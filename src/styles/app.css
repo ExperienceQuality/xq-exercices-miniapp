@@ -172,6 +172,77 @@ h2 {
   min-width: 0;
   min-height: 5.5rem;
 }
+.routine-list {
+  overflow: hidden;
+}
+.routine-row {
+  overflow: hidden;
+  background: #ffffff;
+}
+.routine-reveal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: 4rem;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.routine-reveal-delete {
+  display: flex;
+  width: 100%;
+  min-width: 4rem;
+  min-height: 5.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 0;
+  border-radius: 0;
+  background: #c62828;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.routine-swipe-track {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  background: #ffffff;
+  will-change: transform;
+}
+.routine-swipe-snap {
+  transition: transform 160ms ease-out;
+}
+.routine-swipe-surface {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: stretch;
+}
+.routine-swipe-surface .list-button {
+  flex: 1;
+}
+.routine-persistent-delete {
+  flex: 0 0 auto;
+  align-self: center;
+  min-width: 3.25rem;
+  min-height: 3.25rem;
+  margin-right: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: #c62828;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.routine-detail-delete {
+  margin: 0.25rem 0 1rem;
+}
 .grouped-row:not(:last-child)::after {
   position: absolute;
   right: 0;
@@ -593,6 +664,11 @@ h2 {
   position: fixed;
   z-index: 5;
   inset: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
   background: rgba(15, 20, 35, 0.32);
 }
 .sheet {
@@ -664,6 +740,11 @@ input:focus-visible,
 textarea:focus-visible {
   outline: 3px solid #182b4f;
   outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .routine-swipe-snap {
+    transition: none;
+  }
 }
 @media (max-width: 360px) {
   .shell {

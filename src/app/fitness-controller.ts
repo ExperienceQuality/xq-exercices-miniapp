@@ -3,6 +3,7 @@ import type { FitnessDocumentV2, RoutineV2 } from '../fitness/domain/model';
 import { FitnessError, messages } from '../fitness/domain/errors';
 import {
   createRoutine,
+  deleteRoutine,
   addSession,
   renameSession,
   deleteSession,
@@ -31,6 +32,9 @@ export class FitnessController {
   editor: EditorKind = null;
   editingExerciseId: string | null = null;
   reorderPending = false;
+  deletePending = false;
+  private writeBusy = false;
+  private pendingWrites = 0;
   private mutationChain: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
   private loadCompletion?: Promise<void>;
@@ -76,12 +80,28 @@ export class FitnessController {
   }
 
   private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
-    const next = this.mutationChain.then(operation, operation);
+    this.pendingWrites += 1;
+    this.writeBusy = true;
+    this.notify();
+    const run = async () => {
+      try {
+        return await operation();
+      } finally {
+        this.pendingWrites -= 1;
+        this.writeBusy = this.pendingWrites > 0;
+        this.notify();
+      }
+    };
+    const next = this.mutationChain.then(run, run);
     this.mutationChain = next.then(
       () => undefined,
       () => undefined,
     );
     return next;
+  }
+
+  private suppressWhileBusy(): boolean {
+    return this.deletePending || this.reorderPending || this.writeBusy;
   }
 
   get routine(): RoutineV2 | undefined {
@@ -146,6 +166,8 @@ export class FitnessController {
   }
 
   async saveRoutine(name: string, notes: string) {
+    // TA-DR-040: a pending delete suppresses other mutations.
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       const { document: candidate, mutation } = createRoutine(
@@ -159,6 +181,7 @@ export class FitnessController {
     });
   }
   async saveSession(name: string) {
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine) throw missing('routine');
@@ -177,6 +200,7 @@ export class FitnessController {
     });
   }
   async renameSelectedSession(name: string) {
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
@@ -196,7 +220,8 @@ export class FitnessController {
   ): Promise<void> {
     // Reorders are never queued behind each other: a second call while a
     // save is pending is suppressed even if the selected routine changed.
-    if (this.reorderPending) return;
+    // Pending delete also suppresses reorders (TA-DR-040).
+    if (this.reorderPending || this.deletePending) return;
     this.reorderPending = true;
     this.notify();
     // Snapshot the caller's array: the mutation is built when the queue
@@ -231,7 +256,8 @@ export class FitnessController {
   ): Promise<void> {
     // Shares the global reorder gate with reorderSessions: a second
     // reorder on either list while a save is pending is suppressed.
-    if (this.reorderPending) return;
+    // Pending delete also suppresses reorders (TA-DR-040).
+    if (this.reorderPending || this.deletePending) return;
     this.reorderPending = true;
     this.notify();
     // Snapshot the caller's array: the mutation is built when the queue
@@ -261,6 +287,7 @@ export class FitnessController {
     }
   }
   async removeSession() {
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
@@ -274,7 +301,46 @@ export class FitnessController {
       this.notify();
     });
   }
+  async removeRoutine(routineId: string) {
+    // Busy-reject both directions: suppress while another write/reorder/
+    // delete is outstanding. Snapshot the caller's id so mid-flight
+    // selection changes cannot retarget the delete (TA-DR-040).
+    if (this.suppressWhileBusy()) return;
+    this.deletePending = true;
+    this.notify();
+    const targetId = routineId;
+    try {
+      await this.enqueueMutation(async () => {
+        await this.waitForLoad();
+        const target = this.document.routines.find(
+          (routine) => routine.id === targetId,
+        );
+        if (!target) throw missing('routine');
+        const { document: candidate, mutation } = deleteRoutine(
+          this.document,
+          targetId,
+        );
+        await this.apply(mutation, candidate);
+        if (this.selectedRoutineId === targetId) {
+          this.selectedRoutineId = null;
+          this.selectedSessionId = null;
+          this.editor = null;
+          this.editingExerciseId = null;
+        }
+        this.notice = `Routine “${target.name}” deleted.`;
+        this.notify();
+      });
+    } catch (error) {
+      this.error = safeError(error);
+      this.notify();
+      throw error;
+    } finally {
+      this.deletePending = false;
+      this.notify();
+    }
+  }
   async saveExercise(input: ExerciseInput) {
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
@@ -298,6 +364,7 @@ export class FitnessController {
     });
   }
   async removeExercise(id: string) {
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine || !this.session) throw missing('session');
@@ -311,6 +378,7 @@ export class FitnessController {
     });
   }
   async snapshot() {
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       if (!this.routine) throw missing('routine');
@@ -327,6 +395,7 @@ export class FitnessController {
   }
   async importFile(file: File | undefined) {
     if (!file) return;
+    if (this.deletePending) return;
     return this.enqueueMutation(async () => {
       await this.waitForLoad();
       this.notice = '';

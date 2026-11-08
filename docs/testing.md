@@ -11,7 +11,7 @@ Two lanes plus traceability, all enforced in CI:
    production build served by `vite preview` (real IndexedDB, real
    rendering). This is the authoritative acceptance suite.
 3. **Traceability** — `npm run test:traceability` scans `src/` and
-   `tests/` for `FIT-NNN` references and fails if any of the 111
+   `   tests/` for `FIT-NNN` references and fails if any of the 120
    accepted criteria is unreferenced. `tests/browser/traceability.js`
    holds developer-owned mappings (e.g. FIT-029 white-box).
 
@@ -19,7 +19,7 @@ Two lanes plus traceability, all enforced in CI:
 
 ```sh
 npm run test:unit            # Vitest + coverage (jsdom)
-npm run test:traceability    # FIT-001…FIT-111 reference enforcement
+npm run test:traceability    # FIT-001…FIT-120 reference enforcement
 npm run test:browser:docker  # canonical lane — CI-identical Linux container
 npm run test:browser         # playwright test, native (webServer auto-starts preview)
 npm run test:no-only         # part of `npm run lint`; blocks .only

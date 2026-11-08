@@ -54,4 +54,49 @@ export const developerOwnedAutomation = Object.freeze({
     command: 'npm run test:unit',
     owner: 'fitness-domain',
   }),
+  'FIT-112': Object.freeze({
+    scenario: 'Happy-path list delete with confirm',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-113': Object.freeze({
+    scenario: 'Swipe reveal without mutation',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-114': Object.freeze({
+    scenario: 'Delete-routine confirmation dialog',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-115': Object.freeze({
+    scenario: 'Detail-screen delete returns to list',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-116': Object.freeze({
+    scenario: 'Keyboard path, semantics, focus, announcements',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-117': Object.freeze({
+    scenario: 'axe, contrast, 52px targets, reduced motion, layout',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-118': Object.freeze({
+    scenario: 'Cascade, isolation, empty, persist, offline, no resurrection',
+    command: 'npm run test:browser -- tests/browser/delete-routine.spec.ts',
+    owner: 'delete-routine-browser',
+  }),
+  'FIT-119': Object.freeze({
+    scenario: 'Reducer purity, D2-B recovery writes, fail-closed paths',
+    command: 'npm run test:unit',
+    owner: 'indexeddb-fitness-repository',
+  }),
+  'FIT-120': Object.freeze({
+    scenario: 'Regression, schema, traceability, scope',
+    command: 'npm run test:traceability',
+    owner: 'traceability',
+  }),
 });

@@ -36,6 +36,7 @@
   let error: string | null = null;
   let editingExerciseId: string | null = null;
   let reorderPending = controller.reorderPending;
+  let deletePending = controller.deletePending;
   // Drill-down level: routines list, routine detail, or session detail.
   let screen: 'routines' | 'routine' | 'session' = 'routines';
   const unsubscribe = controller.subscribe(() => {
@@ -48,6 +49,7 @@
     error = controller.error;
     editingExerciseId = controller.editingExerciseId;
     reorderPending = controller.reorderPending;
+    deletePending = controller.deletePending;
     if (!controller.routine) {
       screen = 'routines';
     } else if (
@@ -67,8 +69,15 @@
     sets = 3,
     repetitions = 10,
     weightKg = '0';
+  // FIT-114 / FIT-116: routine delete alertdialog — named cascade body,
+  // initial Cancel focus, busy/disabled confirm guard, Escape/backdrop dismiss.
   let confirmDelete:
-    { kind: 'session' } | { kind: 'exercise'; id: string } | null = null;
+    | { kind: 'session' }
+    | { kind: 'exercise'; id: string }
+    | { kind: 'routine'; id: string; name: string }
+    | null = null;
+  let confirmBusy = false;
+  let confirmCancelButton: HTMLButtonElement | undefined;
   onMount(async () => {
     await initialLoad;
     appStatus = controller.status;
@@ -127,6 +136,11 @@
   };
   const focusConfirm = async () => {
     await tick();
+    // Routine delete focuses the safe action; other confirms keep prior focus.
+    if (confirmDelete?.kind === 'routine' && confirmCancelButton) {
+      confirmCancelButton.focus();
+      return;
+    }
     confirmDialog?.focus();
   };
   const onSheetKeydown = (event: KeyboardEvent, dismiss: () => void) => {
@@ -188,15 +202,37 @@
     restoreReturnFocus();
   };
   const openConfirm = (
-    target: { kind: 'session' } | { kind: 'exercise'; id: string },
+    target:
+      | { kind: 'session' }
+      | { kind: 'exercise'; id: string }
+      | { kind: 'routine'; id: string; name: string },
   ) => {
+    if (confirmBusy) return;
     captureReturnFocus();
     confirmDelete = target;
     void focusConfirm();
   };
   const dismissConfirm = () => {
+    if (confirmBusy) return;
     confirmDelete = null;
     restoreReturnFocus();
+  };
+  const confirmRoutineDelete = async () => {
+    if (confirmDelete?.kind !== 'routine' || confirmBusy || deletePending)
+      return;
+    const target = confirmDelete;
+    confirmBusy = true;
+    try {
+      await controller.removeRoutine(target.id);
+      confirmDelete = null;
+      screen = 'routines';
+      await tick();
+      focusScreenHeading();
+    } catch {
+      void 0;
+    } finally {
+      confirmBusy = false;
+    }
   };
   const saveRoutine = async () => {
     try {
@@ -323,6 +359,7 @@
         />
       {:else if screen === 'routine' && routine}
         {@const routineId = routine.id}
+        {@const routineNameForDelete = routine.name}
         <RoutineDetailScreen
           {routine}
           onBack={backToRoutines}
@@ -331,6 +368,12 @@
           onCaptureSnapshot={() => {
             void controller.snapshot().catch(() => {});
           }}
+          onDeleteRoutine={() =>
+            openConfirm({
+              kind: 'routine',
+              id: routineId,
+              name: routineNameForDelete,
+            })}
           onReorderSessions={(sessionIds) =>
             controller.reorderSessions(routineId, sessionIds)}
           {reorderPending}
@@ -344,6 +387,8 @@
           onImportFile={(file) => {
             void controller.importFile(file).catch(() => {});
           }}
+          onDeleteRoutine={(id, name) =>
+            openConfirm({ kind: 'routine', id, name })}
         />
       {/if}
     </div>
@@ -448,31 +493,52 @@
           onclick={saveExercise}>Save</button
         >{/if}
     </div>{/if}
-  {#if confirmDelete}<div class="sheet-backdrop" aria-hidden="true"></div>
+  {#if confirmDelete}<button
+      class="sheet-backdrop"
+      type="button"
+      aria-label="Dismiss"
+      tabindex="-1"
+      onclick={dismissConfirm}
+    ></button>
     <div
       class="confirm sheet"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
       aria-describedby="confirm-body"
+      aria-busy={confirmBusy || deletePending ? 'true' : undefined}
       tabindex="-1"
       bind:this={confirmDialog}
       onkeydown={(event) => onSheetKeydown(event, dismissConfirm)}
     >
       <h2 id="confirm-title">
-        {confirmDelete.kind === 'session'
-          ? 'Delete session?'
-          : 'Delete exercise?'}
+        {confirmDelete.kind === 'routine'
+          ? 'Delete routine?'
+          : confirmDelete.kind === 'session'
+            ? 'Delete session?'
+            : 'Delete exercise?'}
       </h2>
       <p id="confirm-body">
-        {confirmDelete.kind === 'session'
-          ? 'This removes the session and its exercises.'
-          : 'This removes the exercise.'}
+        {#if confirmDelete.kind === 'routine'}
+          “{confirmDelete.name}” and all of its sessions, exercises, and
+          progress snapshots will be permanently removed.
+        {:else if confirmDelete.kind === 'session'}
+          This removes the session and its exercises.
+        {:else}
+          This removes the exercise.
+        {/if}
       </p>
       <button
         class="primary-cta danger-solid"
         type="button"
+        aria-busy={confirmBusy || deletePending ? 'true' : undefined}
+        aria-disabled={confirmBusy || deletePending ? 'true' : undefined}
+        disabled={confirmBusy || deletePending}
         onclick={async () => {
+          if (confirmDelete?.kind === 'routine') {
+            await confirmRoutineDelete();
+            return;
+          }
           const target = confirmDelete;
           dismissConfirm();
           try {
@@ -485,11 +551,17 @@
             void 0;
           }
         }}
-        >{confirmDelete.kind === 'session'
-          ? 'Delete Session'
-          : 'Delete Exercise'}</button
-      ><button class="secondary-cta" type="button" onclick={dismissConfirm}
-        >Cancel</button
+        >{confirmDelete.kind === 'routine'
+          ? 'Delete'
+          : confirmDelete.kind === 'session'
+            ? 'Delete Session'
+            : 'Delete Exercise'}</button
+      ><button
+        class="secondary-cta"
+        type="button"
+        bind:this={confirmCancelButton}
+        disabled={confirmBusy || deletePending}
+        onclick={dismissConfirm}>Cancel</button
       >
     </div>{/if}
 </main>

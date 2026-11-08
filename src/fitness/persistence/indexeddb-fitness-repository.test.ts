@@ -94,6 +94,89 @@ describe('IndexedDbFitnessRepository', () => {
     expect((await repository.load()).document).toEqual(state());
   });
 
+  // FIT-118 / FIT-119: D2-B writes post-delete state to both slots.
+  it('writes post-delete document to both primary and recovery (D2-B)', async () => {
+    const ns = namespace();
+    const name = resolveFitnessDatabaseName(ns);
+    const repository = createIndexedDbFitnessRepository(ns);
+    await repository.load();
+    await repository.apply(0, {
+      kind: 'create-routine',
+      routine: routine('keep'),
+    });
+    await repository.apply(1, {
+      kind: 'create-routine',
+      routine: {
+        ...routine('gone'),
+        sessions: [
+          {
+            id: 's-1',
+            name: 'Gone session',
+            order: 1,
+            exercises: [
+              {
+                id: 'e-1',
+                name: 'Press',
+                sets: 3,
+                repetitions: 10,
+                weightKg: 40,
+              },
+            ],
+          },
+        ],
+        snapshots: [
+          {
+            id: 'snap-1',
+            capturedAt: '2026-01-01T00:00:00.000Z',
+            entries: [],
+          },
+        ],
+      },
+    });
+    const primaryBefore = await read(name, 'primary');
+    await expect(
+      repository.apply(2, { kind: 'delete-routine', routineId: 'r-gone' }),
+    ).resolves.toEqual({ storageRevision: 3 });
+    const primary = (await read(name, 'primary')) as {
+      storageRevision: number;
+      document: FitnessDocumentV2;
+    };
+    const recovery = (await read(name, 'recovery')) as {
+      storageRevision: number;
+      document: FitnessDocumentV2;
+    };
+    expect(primary).toEqual(recovery);
+    expect(primary.storageRevision).toBe(3);
+    expect(primary.document.routines.map((item) => item.id)).toEqual([
+      'r-keep',
+    ]);
+    expect(primary).not.toEqual(primaryBefore);
+    // Non-delete mutations still keep the prior primary as recovery.
+    await repository.apply(3, {
+      kind: 'create-routine',
+      routine: routine('extra'),
+    });
+    expect(await read(name, 'recovery')).toEqual(primary);
+  });
+
+  it('leaves both slots unchanged when delete-routine rejects', async () => {
+    const ns = namespace();
+    const name = resolveFitnessDatabaseName(ns);
+    const repository = createIndexedDbFitnessRepository(ns);
+    await repository.load();
+    await repository.apply(0, {
+      kind: 'create-routine',
+      routine: routine('keep'),
+    });
+    const primaryBefore = await read(name, 'primary');
+    const recoveryBefore = await read(name, 'recovery');
+    await expect(
+      repository.apply(1, { kind: 'delete-routine', routineId: 'missing' }),
+    ).rejects.toMatchObject({ code: 'missing-routine' });
+    expect(await read(name, 'primary')).toEqual(primaryBefore);
+    expect(await read(name, 'recovery')).toEqual(recoveryBefore);
+  });
+
   it('applies granular mutations against the stored document and reloads them', async () => {
     const ns = namespace();
     const repository = createIndexedDbFitnessRepository(ns);

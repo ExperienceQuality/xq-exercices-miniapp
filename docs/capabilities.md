@@ -13,6 +13,10 @@ dependency.
 - Create a routine with a required name and optional notes.
 - Names are trimmed; blank names are rejected ("A name is required.").
 - Select a routine from a card grid to open its workspace.
+- Delete a routine by left-swiping its row and confirming, via the
+  persistent list Delete control, or from the routine detail screen;
+  delete cascades sessions, exercises, and progress snapshots after an
+  `alertdialog` confirmation.
 
 ### Training sessions
 
@@ -80,7 +84,8 @@ dependency.
 The roomier mobile UI acceptance criteria
 ([roomier-ui-acceptance.md](roomier-ui-acceptance.md)) map one-to-one
 into the FIT inventory: RUI-AC-n → FIT-(76+n), occupying
-FIT-077…FIT-111. FIT-001…FIT-076 are preserved unchanged.
+FIT-077…FIT-111. FIT-001…FIT-076 are preserved unchanged. Delete-routine
+adds FIT-112…FIT-120 (see table after RUI-AC-35).
 
 | Acceptance | FIT     | Requirement summary                                                                                                  |
 | ---------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -119,6 +124,28 @@ FIT-077…FIT-111. FIT-001…FIT-076 are preserved unchanged.
 | RUI-AC-33  | FIT-109 | Existing edit/delete/import/create/progress/decimal flows and schema v2 remain compatible.                           |
 | RUI-AC-34  | FIT-110 | Caller arrays and explicit parents are captured before queueing; latest-document validation prevents stale clobber.  |
 | RUI-AC-35  | FIT-111 | Existing snapshots and future aggregate semantics remain unchanged except documented casing behavior.                |
+
+### Delete routine (FIT-112…FIT-120)
+
+Users delete exactly one top-level routine by stable ID (cascade removes
+its sessions, exercises, and progress snapshots). Entry points: left-swipe
+reveal + Delete, persistent list Delete (≥52px), or detail-screen
+“Delete routine”, each gated by an `alertdialog` confirmation. Successful
+`delete-routine` persistence uses D2 Option B: both `primary` and
+`recovery` receive the post-delete record. No schema bump, rename/edit,
+bulk delete, undo/trash, or network.
+
+| FIT     | Cluster                                                              |
+| ------- | -------------------------------------------------------------------- |
+| FIT-112 | Happy-path list delete                                               |
+| FIT-113 | Gesture reveal without mutation                                      |
+| FIT-114 | Confirmation dialog                                                  |
+| FIT-115 | Detail-screen delete and list return                                 |
+| FIT-116 | Keyboard, semantics, focus, announcements                            |
+| FIT-117 | axe, contrast, targets, motion, layout                               |
+| FIT-118 | Cascade, isolation, empty, persist, offline, no healthy resurrection |
+| FIT-119 | Reducer purity, D2-B recovery writes, and fail-closed paths          |
+| FIT-120 | Regression, schema, traceability, scope                              |
 
 ## Explicit non-goals
 
