@@ -79,12 +79,14 @@ function tokenEstimate(text) {
 
 function scoreRecord(record, keywords, types, explicitStatuses) {
   let score = 0;
-  const hay = `${record.topic} ${record.summary} ${record.details || ''}`.toLowerCase();
+  const hay =
+    `${record.topic} ${record.summary} ${record.details || ''}`.toLowerCase();
   for (const kw of keywords) {
     if (hay.includes(kw.toLowerCase())) score += 3;
   }
   if (types.length && types.includes(record.type)) score += 2;
-  if (explicitStatuses.length && explicitStatuses.includes(record.status)) score += 1;
+  if (explicitStatuses.length && explicitStatuses.includes(record.status))
+    score += 1;
   if (record.status === 'superseded') score -= 1;
   return score;
 }
@@ -98,7 +100,10 @@ async function readNdjson(filePath) {
     if (err && err.code === 'ENOENT') return records;
     throw err;
   }
-  const rl = createInterface({ input: createReadStream(filePath, { encoding: 'utf8' }), crlfDelay: Infinity });
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
   let lineNumber = 0;
   for await (const line of rl) {
     lineNumber++;
@@ -107,22 +112,35 @@ async function readNdjson(filePath) {
     try {
       records.push(JSON.parse(trimmed));
     } catch (e) {
-      throw new Error(`Invalid JSON at line ${lineNumber} in ${filePath}: ${e.message}`);
+      throw new Error(
+        `Invalid JSON at line ${lineNumber} in ${filePath}: ${e.message}`,
+      );
     }
   }
   return records;
 }
 
-export async function searchMemory({ keywords = [], types = [], statuses = ['active'], budget = DEFAULT_BUDGET, sources = DEFAULT_SOURCES, memoryDir } = {}) {
+export async function searchMemory({
+  keywords = [],
+  types = [],
+  statuses = ['active'],
+  budget = DEFAULT_BUDGET,
+  sources = DEFAULT_SOURCES,
+  memoryDir,
+} = {}) {
   const dir = resolveMemoryDir(memoryDir);
   const all = [];
   for (const src of sources) {
     if (!isValidSource(src)) {
-      throw new Error(`Invalid memory source: ${JSON.stringify(src)} — expected a literal relative file path`);
+      throw new Error(
+        `Invalid memory source: ${JSON.stringify(src)} — expected a literal relative file path`,
+      );
     }
     const resolved = resolveSourcePath(dir, src);
     if (resolved === null) {
-      throw new Error(`Memory source escapes memoryDir: ${JSON.stringify(src)}`);
+      throw new Error(
+        `Memory source escapes memoryDir: ${JSON.stringify(src)}`,
+      );
     }
     const records = await readNdjson(resolved);
     for (const rec of records) {
@@ -130,11 +148,18 @@ export async function searchMemory({ keywords = [], types = [], statuses = ['act
     }
   }
 
-  const explicitStatuses = statuses.length && !(statuses.length === 1 && statuses[0] === 'active') ? statuses : [];
-  const hasFilter = keywords.length > 0 || types.length > 0 || explicitStatuses.length > 0;
+  const explicitStatuses =
+    statuses.length && !(statuses.length === 1 && statuses[0] === 'active')
+      ? statuses
+      : [];
+  const hasFilter =
+    keywords.length > 0 || types.length > 0 || explicitStatuses.length > 0;
   const scored = all
-    .map(rec => ({ record: rec, score: scoreRecord(rec, keywords, types, explicitStatuses) }))
-    .filter(item => item.score > 0 || !hasFilter)
+    .map((rec) => ({
+      record: rec,
+      score: scoreRecord(rec, keywords, types, explicitStatuses),
+    }))
+    .filter((item) => item.score > 0 || !hasFilter)
     .sort((a, b) => b.score - a.score);
 
   const selected = [];
@@ -157,7 +182,7 @@ export async function searchMemory({ keywords = [], types = [], statuses = ['act
     used_budget: used,
     budget,
     approximate_tokens: used,
-    total_considered: all.length
+    total_considered: all.length,
   };
 }
 
@@ -202,7 +227,9 @@ export function parseSearchArgs(args) {
   }
   for (const src of sources) {
     if (!isValidSource(src)) {
-      throw new Error(`invalid --source ${JSON.stringify(src)} — expected a literal relative file path`);
+      throw new Error(
+        `invalid --source ${JSON.stringify(src)} — expected a literal relative file path`,
+      );
     }
   }
   return {
@@ -247,7 +274,8 @@ function isMain() {
   try {
     return (
       process.argv[1] &&
-      realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+      realpathSync(process.argv[1]) ===
+        realpathSync(fileURLToPath(import.meta.url))
     );
   } catch {
     return false;

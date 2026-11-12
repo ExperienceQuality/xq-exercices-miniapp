@@ -11,6 +11,10 @@ import { appendSnapshot } from './snapshots';
 export type FitnessMutation =
   | { readonly kind: 'create-routine'; readonly routine: RoutineV2 }
   | {
+      readonly kind: 'delete-routine';
+      readonly routineId: string;
+    }
+  | {
       readonly kind: 'add-session';
       readonly routineId: string;
       readonly session: TrainingSessionV2;
@@ -183,6 +187,13 @@ export function applyMutation(
         ...document,
         routines: [...document.routines, mutation.routine],
       };
+    case 'delete-routine': {
+      const index = routineAt(document, mutation.routineId);
+      return {
+        ...document,
+        routines: document.routines.filter((_, position) => position !== index),
+      };
+    }
     case 'add-session': {
       const index = routineAt(document, mutation.routineId);
       const routine = document.routines[index]!;

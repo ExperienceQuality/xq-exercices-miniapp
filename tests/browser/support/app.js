@@ -104,6 +104,7 @@ export const test = base.extend({
 
     const click = async (name) => {
       const locator = controlLocator(name);
+      const wantsDelete = /^Delete\b/i.test(name);
       await waitForSettled(
         async () => {
           const count = await locator.count();
@@ -111,6 +112,20 @@ export const test = base.extend({
             const candidate = locator.nth(index);
             if (!(await candidate.isVisible())) continue;
             if (!(await candidate.isEnabled())) continue;
+            // Routine swipe Delete buttons use aria-label
+            // `Delete {routineName}`. Playwright's name match is a
+            // substring, so `click(routineName)` otherwise resolves
+            // to the reveal Delete and the persistent Delete
+            // intercepts the pointer.
+            if (!wantsDelete) {
+              const className = (await candidate.getAttribute('class')) ?? '';
+              if (
+                className.includes('routine-reveal-delete') ||
+                className.includes('routine-persistent-delete')
+              ) {
+                continue;
+              }
+            }
             await candidate.click({ timeout: 1_000 });
             return true;
           }
@@ -120,6 +135,16 @@ export const test = base.extend({
         10_000,
       );
     };
+
+    // Routine / session open controls share `.list-button`. Prefer that
+    // over swipe Delete (`Delete {name}`) and reorder handles when tests
+    // assert presence or navigate by title.
+    const routineOpenButton = (name) =>
+      page.locator('.list-button').filter({
+        has: page.locator('strong', {
+          hasText: new RegExp(escapeRegExp(name)),
+        }),
+      });
 
     // Opening a session must target the row navigation button
     // (.list-button) by exact name: the new reorder handle and
@@ -376,6 +401,7 @@ export const test = base.extend({
       openSession,
       installNamespaceIsolation: () => installNamespaceIsolation(context),
       page,
+      routineOpenButton,
       readFixture,
       seedRecords,
       setTextScale,

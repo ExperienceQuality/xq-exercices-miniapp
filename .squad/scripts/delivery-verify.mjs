@@ -16,7 +16,12 @@ import fs from 'node:fs/promises';
 import { createReadStream, realpathSync } from 'node:fs';
 import { validateWritePaths } from './delivery-scope.mjs';
 import { readOwnedClaim, REGISTRY_LIMITS } from './delivery-registry.mjs';
-import { gitOut, gitTry, resolveCommit, blocked } from './delivery-worktree.mjs';
+import {
+  gitOut,
+  gitTry,
+  resolveCommit,
+  blocked,
+} from './delivery-worktree.mjs';
 
 const SNAPSHOT_VERSION = 1;
 const LS_FILES_CAP = 100000;
@@ -40,11 +45,20 @@ function checkContext(context) {
     return fail('INVALID_INPUT', 'context must be an object');
   }
   for (const k of Object.keys(context)) {
-    if (!['repositoryPath', 'deliveryId', 'ownerToken', 'generation', 'worktreePath'].includes(k)) {
+    if (
+      ![
+        'repositoryPath',
+        'deliveryId',
+        'ownerToken',
+        'generation',
+        'worktreePath',
+      ].includes(k)
+    ) {
       return fail('INVALID_INPUT', `unknown context field ${k}`);
     }
   }
-  const { repositoryPath, deliveryId, ownerToken, generation, worktreePath } = context;
+  const { repositoryPath, deliveryId, ownerToken, generation, worktreePath } =
+    context;
   if (typeof repositoryPath !== 'string' || !path.isAbsolute(repositoryPath)) {
     return fail('INVALID_INPUT', 'repositoryPath must be an absolute path');
   }
@@ -71,7 +85,9 @@ function isFingerprint(fp) {
   if (!fp || typeof fp !== 'object' || Array.isArray(fp)) return false;
   const keys = Object.keys(fp);
   if (fp.t === 'f') {
-    return keys.length === 2 && keys.includes('h') && SHA256_PATTERN.test(fp.h || '');
+    return (
+      keys.length === 2 && keys.includes('h') && SHA256_PATTERN.test(fp.h || '')
+    );
   }
   if (fp.t === 'i') {
     return (
@@ -84,7 +100,8 @@ function isFingerprint(fp) {
       fp.m >= 0
     );
   }
-  if (fp.t === 'l') return keys.length === 2 && keys.includes('l') && typeof fp.l === 'string';
+  if (fp.t === 'l')
+    return keys.length === 2 && keys.includes('l') && typeof fp.l === 'string';
   if (fp.t === 'd' || fp.t === 'missing') return keys.length === 1;
   return false;
 }
@@ -151,13 +168,22 @@ async function verifyWorktreeIdentity(context, claim, commonDir) {
   try {
     real = realpathSync(context.worktreePath);
   } catch {
-    return blocked('RECOVERY_REQUIRED', 'claimed worktree path cannot be resolved');
+    return blocked(
+      'RECOVERY_REQUIRED',
+      'claimed worktree path cannot be resolved',
+    );
   }
   if (real !== claim.worktreePath) {
-    return blocked('RECOVERY_REQUIRED', 'worktree path does not match the claim binding');
+    return blocked(
+      'RECOVERY_REQUIRED',
+      'worktree path does not match the claim binding',
+    );
   }
   if (real === claim.repositoryRoot) {
-    return blocked('RECOVERY_REQUIRED', 'claimed worktree resolves to the main checkout');
+    return blocked(
+      'RECOVERY_REQUIRED',
+      'claimed worktree resolves to the main checkout',
+    );
   }
   const wtCommon = await gitTry(real, [
     'rev-parse',
@@ -165,15 +191,28 @@ async function verifyWorktreeIdentity(context, claim, commonDir) {
     '--git-common-dir',
   ]);
   if (!wtCommon || realpathSync(wtCommon.trim()) !== commonDir) {
-    return blocked('RECOVERY_REQUIRED', 'worktree Git common dir does not match the claim registry');
+    return blocked(
+      'RECOVERY_REQUIRED',
+      'worktree Git common dir does not match the claim registry',
+    );
   }
   const branch = await gitTry(real, ['rev-parse', '--abbrev-ref', 'HEAD']);
   if ((branch || '').trim() !== claim.branch) {
-    return blocked('RECOVERY_REQUIRED', 'worktree is not on the claimed delivery branch');
+    return blocked(
+      'RECOVERY_REQUIRED',
+      'worktree is not on the claimed delivery branch',
+    );
   }
-  const baseOk = await gitTry(real, ['cat-file', '-e', `${claim.baseCommit}^{commit}`]);
+  const baseOk = await gitTry(real, [
+    'cat-file',
+    '-e',
+    `${claim.baseCommit}^{commit}`,
+  ]);
   if (baseOk === null) {
-    return blocked('RECOVERY_REQUIRED', 'recorded base commit is not resolvable in the worktree');
+    return blocked(
+      'RECOVERY_REQUIRED',
+      'recorded base commit is not resolvable in the worktree',
+    );
   }
   return { real };
 }
@@ -186,7 +225,10 @@ async function lsFiles(worktreePath, args) {
   });
   const bytes = Buffer.byteLength(out, 'utf8');
   if (bytes > GIT_OUT_CAP) {
-    throw blocked('RECOVERY_REQUIRED', 'ls-files output exceeds the capture cap');
+    throw blocked(
+      'RECOVERY_REQUIRED',
+      'ls-files output exceeds the capture cap',
+    );
   }
   return out.split('\0').filter(Boolean);
 }
@@ -262,31 +304,66 @@ function parseNameStatus(out) {
 
 async function collectState(worktreePath, claim) {
   const head = await resolveCommit(worktreePath, 'HEAD');
-  if (!head) throw blocked('RECOVERY_REQUIRED', 'worktree HEAD is not resolvable');
+  if (!head)
+    throw blocked('RECOVERY_REQUIRED', 'worktree HEAD is not resolvable');
   const resolvedTarget = await resolveCommit(worktreePath, claim.baseRef);
   if (!resolvedTarget) {
-    throw blocked('RECOVERY_REQUIRED', `baseRef ${claim.baseRef} is not resolvable`);
+    throw blocked(
+      'RECOVERY_REQUIRED',
+      `baseRef ${claim.baseRef} is not resolvable`,
+    );
   }
-  const mergeBaseOut = await gitTry(worktreePath, ['merge-base', 'HEAD', resolvedTarget]);
+  const mergeBaseOut = await gitTry(worktreePath, [
+    'merge-base',
+    'HEAD',
+    resolvedTarget,
+  ]);
   const mergeBase = mergeBaseOut ? mergeBaseOut.split('\n')[0].trim() : null;
   if (!mergeBase || !SHA_PATTERN.test(mergeBase)) {
-    throw blocked('RECOVERY_REQUIRED', 'no merge base between HEAD and resolved baseRef');
+    throw blocked(
+      'RECOVERY_REQUIRED',
+      'no merge base between HEAD and resolved baseRef',
+    );
   }
 
-  const [cached, others, ignoredList, suppressedList, stagedOut, unstagedOut, patchOut] =
-    await Promise.all([
-      lsFiles(worktreePath, ['--cached']),
-      lsFiles(worktreePath, ['--others']),
-      lsFiles(worktreePath, ['--others', '--ignored', '--exclude-standard']),
-      lsFiles(worktreePath, ['-v']),
-      // Index-vs-HEAD and worktree-vs-index are collected separately: a staged
-      // change canceled by later worktree bytes still marks the path authored.
-      gitOut(worktreePath, ['diff', '--cached', '--name-status', '-z', '-M', 'HEAD']),
-      gitOut(worktreePath, ['diff', '--name-status', '-z', '-M']),
-      gitOut(worktreePath, ['diff', '--name-status', '-z', '-M', mergeBase, 'HEAD']),
-    ]);
+  const [
+    cached,
+    others,
+    ignoredList,
+    suppressedList,
+    stagedOut,
+    unstagedOut,
+    patchOut,
+  ] = await Promise.all([
+    lsFiles(worktreePath, ['--cached']),
+    lsFiles(worktreePath, ['--others']),
+    lsFiles(worktreePath, ['--others', '--ignored', '--exclude-standard']),
+    lsFiles(worktreePath, ['-v']),
+    // Index-vs-HEAD and worktree-vs-index are collected separately: a staged
+    // change canceled by later worktree bytes still marks the path authored.
+    gitOut(worktreePath, [
+      'diff',
+      '--cached',
+      '--name-status',
+      '-z',
+      '-M',
+      'HEAD',
+    ]),
+    gitOut(worktreePath, ['diff', '--name-status', '-z', '-M']),
+    gitOut(worktreePath, [
+      'diff',
+      '--name-status',
+      '-z',
+      '-M',
+      mergeBase,
+      'HEAD',
+    ]),
+  ]);
   if (cached.length + others.length > LS_FILES_CAP) {
-    throw blocked('RECOVERY_REQUIRED', 'file enumeration exceeds the entry cap');
+    throw blocked(
+      'RECOVERY_REQUIRED',
+      'file enumeration exceeds the entry cap',
+    );
   }
   const ignored = new Set(ignoredList);
   const authored = new Set([
@@ -328,15 +405,27 @@ export async function captureDeliverySnapshot(context = {}) {
     const owned = await readOwnedClaim(context);
     if (owned.status !== 'OK') return owned;
     const claim = owned.record;
-    const identity = await verifyWorktreeIdentity(context, claim, owned.commonDir);
+    const identity = await verifyWorktreeIdentity(
+      context,
+      claim,
+      owned.commonDir,
+    );
     if (identity.real === undefined) return identity;
 
     const state = await collectState(identity.real, claim);
     // Capture never launders violations: any existing out-of-scope authored
     // change blocks the snapshot outright.
-    const scopeBlock = await checkAuthoredScope(identity.real, claim, state.authored);
+    const scopeBlock = await checkAuthoredScope(
+      identity.real,
+      claim,
+      state.authored,
+    );
     if (scopeBlock) return scopeBlock;
-    const files = await fingerprintAll(identity.real, state.files, state.ignored);
+    const files = await fingerprintAll(
+      identity.real,
+      state.files,
+      state.ignored,
+    );
 
     // Ownership must still hold after the collection pass.
     const owned2 = await readOwnedClaim(context);
@@ -356,7 +445,10 @@ export async function captureDeliverySnapshot(context = {}) {
     });
   } catch (err) {
     if (err && err.status === 'BLOCKED') return err;
-    return fail('RECOVERY_REQUIRED', String(err && err.message ? err.message : err));
+    return fail(
+      'RECOVERY_REQUIRED',
+      String(err && err.message ? err.message : err),
+    );
   }
 }
 
@@ -369,7 +461,11 @@ export async function verifyDeliveryWrites(context = {}, baseline = {}) {
     const owned = await readOwnedClaim(context);
     if (owned.status !== 'OK') return owned;
     const claim = owned.record;
-    const identity = await verifyWorktreeIdentity(context, claim, owned.commonDir);
+    const identity = await verifyWorktreeIdentity(
+      context,
+      claim,
+      owned.commonDir,
+    );
     if (identity.real === undefined) return identity;
 
     // Baseline must be bound to this exact claim state.
@@ -379,11 +475,17 @@ export async function verifyDeliveryWrites(context = {}, baseline = {}) {
       baseline.deliveryId !== claim.deliveryId ||
       baseline.generation !== claim.generation
     ) {
-      return blocked('RECOVERY_REQUIRED', 'baseline is not bound to this claim');
+      return blocked(
+        'RECOVERY_REQUIRED',
+        'baseline is not bound to this claim',
+      );
     }
 
     const state = await collectState(identity.real, claim);
-    if (state.head !== baseline.head || state.resolvedTarget !== baseline.resolvedTarget) {
+    if (
+      state.head !== baseline.head ||
+      state.resolvedTarget !== baseline.resolvedTarget
+    ) {
       return blocked(
         'RECOVERY_REQUIRED',
         'HEAD or resolved baseRef changed since capture — recapture requires authorized integration review',
@@ -415,7 +517,11 @@ export async function verifyDeliveryWrites(context = {}, baseline = {}) {
       else if (res.status !== 'OK') return res;
     }
     if (violations.length > 0) {
-      return blocked('SCOPE_CONFLICT', 'out-of-scope authored writes detected', { violations });
+      return blocked(
+        'SCOPE_CONFLICT',
+        'out-of-scope authored writes detected',
+        { violations },
+      );
     }
 
     const owned2 = await readOwnedClaim(context);
@@ -423,6 +529,9 @@ export async function verifyDeliveryWrites(context = {}, baseline = {}) {
     return ok();
   } catch (err) {
     if (err && err.status === 'BLOCKED') return err;
-    return fail('RECOVERY_REQUIRED', String(err && err.message ? err.message : err));
+    return fail(
+      'RECOVERY_REQUIRED',
+      String(err && err.message ? err.message : err),
+    );
   }
 }

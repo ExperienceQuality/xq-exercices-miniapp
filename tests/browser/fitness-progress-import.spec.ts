@@ -181,9 +181,7 @@ test.describe('Fitness import acceptance', () => {
     await app.importFixture('valid-v2.json');
     await app.expectText('Fitness data imported.');
     await app.expectText('Power Base');
-    await expect(
-      app.page.getByRole('button', { name: /Power Base/ }),
-    ).toBeVisible();
+    await expect(app.routineOpenButton('Power Base')).toBeVisible();
     await app.expectNoText('Import Sentinel');
   });
 
@@ -195,9 +193,7 @@ test.describe('Fitness import acceptance', () => {
     await app.expectText('Legacy Strength');
     await app.page.reload();
     await app.expectText('Legacy Strength');
-    await expect(
-      app.page.getByRole('button', { name: /Legacy Strength/ }),
-    ).toBeVisible();
+    await expect(app.routineOpenButton('Legacy Strength')).toBeVisible();
     await app.expectNoText('Import Sentinel');
   });
 
@@ -210,9 +206,7 @@ test.describe('Fitness import acceptance', () => {
       await app.expectText('Import Sentinel');
       await app.expectNoText('Fitness data imported.');
     }
-    await expect(
-      app.page.getByRole('button', { name: /Import Sentinel/ }),
-    ).toBeVisible();
+    await expect(app.routineOpenButton('Import Sentinel')).toBeVisible();
   });
 
   test('IMPORT-04 rejects unsupported future schema without overwrite (FIT-045)', async ({
@@ -221,9 +215,7 @@ test.describe('Fitness import acceptance', () => {
     await app.importFixture('future-v3.json');
     await app.expectText('not supported');
     await app.expectText('Import Sentinel');
-    await expect(
-      app.page.getByRole('button', { name: /Import Sentinel/ }),
-    ).toBeVisible();
+    await expect(app.routineOpenButton('Import Sentinel')).toBeVisible();
     await app.expectNoText('Fitness data imported.');
   });
 
@@ -234,9 +226,7 @@ test.describe('Fitness import acceptance', () => {
       .locator('input[type="file"]')
       .dispatchEvent('change', { bubbles: true });
     await app.expectText('Import Sentinel');
-    await expect(
-      app.page.getByRole('button', { name: /Import Sentinel/ }),
-    ).toBeVisible();
+    await expect(app.routineOpenButton('Import Sentinel')).toBeVisible();
     await app.expectNoText('Fitness data imported.');
     await app.expectNoText('invalid');
   });
@@ -248,9 +238,7 @@ test.describe('Fitness import acceptance', () => {
     await app.importFixture('valid-v2.json');
     await app.expectText('could not be saved');
     await app.expectText('Import Sentinel');
-    await expect(
-      app.page.getByRole('button', { name: /Import Sentinel/ }),
-    ).toBeVisible();
+    await expect(app.routineOpenButton('Import Sentinel')).toBeVisible();
     await app.expectNoText('Power Base');
   });
 });
@@ -285,7 +273,7 @@ test.describe('Persistence and recovery acceptance', () => {
     await app.page.reload();
     await app.expectText('Recovered Synthetic Routine');
     await expect(
-      app.page.getByRole('button', { name: /Recovered Synthetic Routine/ }),
+      app.routineOpenButton('Recovered Synthetic Routine'),
     ).toBeVisible();
   });
 

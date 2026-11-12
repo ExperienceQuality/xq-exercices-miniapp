@@ -15,6 +15,7 @@ could follow the same protocol honestly.
 ```ts
 export type FitnessMutation =
   | { kind: 'create-routine'; routine: RoutineV2 }
+  | { kind: 'delete-routine'; routineId: string }
   | { kind: 'add-session'; routineId: string; session: TrainingSessionV2 }
   | {
       kind: 'rename-session';
@@ -87,10 +88,14 @@ export interface FitnessRepository {
 - The IndexedDB adapter reads `primary` inside a single readwrite
   transaction, checks `expectedRevision`, replays the mutation against
   the stored document via `applyMutation`, re-parses the result with the
-  zod schema, then writes the prior primary to `recovery` and the new
-  document to `primary` at `storageRevision + 1`. Atomicity, dual-slot
-  recovery, and fail-closed conflict handling are unchanged: stale
-  revisions and replay/validation failures write neither slot.
+  zod schema, then — for every mutation except `delete-routine` — writes
+  the prior primary to `recovery` and the new document to `primary` at
+  `storageRevision + 1`. For `delete-routine` (D2 Option B) both
+  `primary` and `recovery` receive the validated post-delete record at
+  `expectedRevision + 1` so a later healthy load cannot resurrect the
+  deleted routine. Atomicity and fail-closed conflict handling are
+  unchanged: stale revisions and replay/validation failures write
+  neither slot.
 - JSON import keeps its `(revision, document)` callback; the controller
   wraps it in a `replace-document` mutation.
 
@@ -103,6 +108,7 @@ export interface FitnessRepository {
 | Mutation                                               | Endpoint                                       |
 | ------------------------------------------------------ | ---------------------------------------------- |
 | `create-routine`                                       | `POST /routines`                               |
+| `delete-routine`                                       | `DELETE /routines/:id`                         |
 | `add-session`                                          | `POST /routines/:id/sessions`                  |
 | `rename-session`                                       | `PATCH /routines/:id/sessions/:sid`            |
 | `delete-session`                                       | `DELETE /routines/:id/sessions/:sid`           |

@@ -135,11 +135,19 @@ export class IndexedDbFitnessRepository implements FitnessRepository {
         applyMutation(primary.document, mutation),
       );
       const storageRevision = expectedRevision + 1;
-      await transaction.store.put(structuredClone(primary), 'recovery');
-      await transaction.store.put(
-        { storageRevision, document: structuredClone(document) },
-        'primary',
-      );
+      const next: StoredFitnessRecord = {
+        storageRevision,
+        document: structuredClone(document),
+      };
+      // D2-B: delete-routine writes the post-delete record to both slots so
+      // recovery cannot resurrect the deleted routine on a later healthy load.
+      if (mutation.kind === 'delete-routine') {
+        await transaction.store.put(structuredClone(next), 'recovery');
+        await transaction.store.put(structuredClone(next), 'primary');
+      } else {
+        await transaction.store.put(structuredClone(primary), 'recovery');
+        await transaction.store.put(next, 'primary');
+      }
       await transaction.done;
       return { storageRevision };
     } catch (error) {

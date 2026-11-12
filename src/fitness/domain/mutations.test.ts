@@ -5,6 +5,7 @@ import {
   captureSnapshot,
   createRoutine,
   deleteExercise,
+  deleteRoutine,
   deleteSession,
   editExercise,
   renameSession,
@@ -92,6 +93,32 @@ describe('applyMutation command replay parity', () => {
       sessionId: 's1',
     });
     expect(applyMutation(before, result.mutation)).toEqual(result.document);
+  });
+
+  // FIT-118 / FIT-119: delete-routine cascade, isolation, reducer purity.
+  it('replays delete-routine identically and cascades children', () => {
+    let before = populated();
+    before = createRoutine(before, { name: 'Keep' }, ids('keep')).document;
+    before = captureSnapshot(before, 'r', ids('snap'), clock()).document;
+    const frozen = structuredClone(before);
+    const result = deleteRoutine(before, 'r');
+    expect(result.mutation).toEqual({ kind: 'delete-routine', routineId: 'r' });
+    expect(applyMutation(before, result.mutation)).toEqual(result.document);
+    expect(result.document.routines.map((routine) => routine.id)).toEqual([
+      'keep',
+    ]);
+    expect(result.document.routines[0]).toEqual(frozen.routines[1]);
+    expect(before).toEqual(frozen);
+  });
+
+  it('rejects delete-routine for a missing id without mutating', () => {
+    const before = populated();
+    const frozen = structuredClone(before);
+    expect(() => deleteRoutine(before, 'missing')).toThrowError(FitnessError);
+    expect(() =>
+      applyMutation(before, { kind: 'delete-routine', routineId: 'missing' }),
+    ).toThrowError(/no longer exists/);
+    expect(before).toEqual(frozen);
   });
 
   it('replays reorder-sessions identically', () => {

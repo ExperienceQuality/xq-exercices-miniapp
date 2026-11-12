@@ -21,7 +21,7 @@
 | `npm run lint`              | ESLint `--max-warnings=0` + no-`.only` gate        |
 | `npm run check`             | `svelte-check` type checking (`tsconfig.app.json`) |
 | `npm run test:unit`         | Vitest run with V8 coverage thresholds             |
-| `npm run test:traceability` | Enforce FIT-001…FIT-111 scenario references        |
+| `npm run test:traceability` | Enforce FIT-001…FIT-120 scenario references        |
 | `npm run build`             | Vite production build (`dist/`)                    |
 | `npm run preview:test`      | Serve `dist/` on `127.0.0.1:4173`                  |
 | `npm run test:browser`      | Playwright suite (auto-starts preview)             |
@@ -36,8 +36,9 @@ src/main.ts                      # mount point (import.meta.glob, eager)
 src/app/
   App.svelte                     # shell: status gate, drill-down screen
                                  # routing, editors, confirm dialogs, import
-  RoutinesScreen.svelte          # level 1: routine list + create + import
-  RoutineDetailScreen.svelte     # level 2: session list + progress snapshots
+  RoutinesScreen.svelte          # level 1: routine list + create + import + delete
+  RoutineListItem.svelte         # swipe reveal + persistent Delete per routine
+  RoutineDetailScreen.svelte     # level 2: session list + progress + delete routine
   SessionDetailScreen.svelte     # level 3: exercise list for one session
   fitness-controller.ts          # app service: load/apply lifecycle,
                                  # serialized mutation chain, selection,
@@ -138,5 +139,5 @@ aria labels on all controls, `aria-live`/`role="status"` for notices.
   in `tests/browser/support/app.js`.
 - Every acceptance criterion has a `FIT-NNN` ID referenced in code or
   test comments; `test:traceability` fails the build if any of
-  FIT-001…FIT-111 is unreferenced.
+  FIT-001…FIT-120 is unreferenced.
 - `.only` in tests is a lint failure (`scripts/check-no-only.mjs`).

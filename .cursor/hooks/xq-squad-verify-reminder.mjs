@@ -5,7 +5,12 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { readStdinJson, respond, projectDir, deliveryIdOf } from './xq-squad-hook-io.mjs';
+import {
+  readStdinJson,
+  respond,
+  projectDir,
+  deliveryIdOf,
+} from './xq-squad-hook-io.mjs';
 
 export function decide(input, { gitStatus } = {}) {
   if (input?.status !== 'completed' || (input?.loop_count ?? 0) > 0) return {};
@@ -14,7 +19,11 @@ export function decide(input, { gitStatus } = {}) {
   if (!id) return {};
   let dirty = '';
   try {
-    dirty = gitStatus ? gitStatus(dir) : execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' });
+    dirty = gitStatus
+      ? gitStatus(dir)
+      : execFileSync('git', ['-C', dir, 'status', '--porcelain'], {
+          encoding: 'utf8',
+        });
   } catch {
     return {};
   }
@@ -27,7 +36,10 @@ export function decide(input, { gitStatus } = {}) {
   };
 }
 
-if (process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
+if (
+  process.argv[1] &&
+  pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url
+) {
   let out = {};
   try {
     out = decide(await readStdinJson());

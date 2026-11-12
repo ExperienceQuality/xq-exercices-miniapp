@@ -22,7 +22,9 @@ async function listFiles(dir) {
   const stack = [dir];
   while (stack.length) {
     const current = stack.pop();
-    const entries = await import('node:fs/promises').then(m => m.readdir(current, { withFileTypes: true }));
+    const entries = await import('node:fs/promises').then((m) =>
+      m.readdir(current, { withFileTypes: true }),
+    );
     for (const entry of entries) {
       const path = join(current, entry.name);
       if (entry.isDirectory()) {
@@ -51,7 +53,9 @@ export async function writeInstallState(targetDir, version, extractDir) {
     const installed = join(targetDir, rel);
     if (rel === '.cursor/hooks.json') {
       // Merge-managed: record the merged result actually on disk.
-      managedFiles[rel] = await hashFile(existsSync(installed) ? installed : file);
+      managedFiles[rel] = await hashFile(
+        existsSync(installed) ? installed : file,
+      );
       continue;
     }
     const hash = await hashFile(file);
@@ -72,10 +76,14 @@ export async function writeInstallState(targetDir, version, extractDir) {
     installed_at: new Date().toISOString(),
     managed_files: managedFiles,
     retired_files: {},
-    ownership: squadJson.ownership
+    ownership: squadJson.ownership,
   };
 
-  await writeFile(join(squadDir, 'install-state.json'), JSON.stringify(state, null, 2) + '\n', 'utf8');
+  await writeFile(
+    join(squadDir, 'install-state.json'),
+    JSON.stringify(state, null, 2) + '\n',
+    'utf8',
+  );
 }
 
 async function main() {
@@ -85,7 +93,10 @@ async function main() {
 
 function isMain() {
   try {
-    return Boolean(process.argv[1]) && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url;
+    return (
+      Boolean(process.argv[1]) &&
+      pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url
+    );
   } catch {
     return false;
   }

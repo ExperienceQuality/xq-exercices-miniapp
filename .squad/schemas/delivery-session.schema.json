@@ -105,7 +105,9 @@
   "allOf": [
     {
       "if": { "properties": { "state": { "const": "RELEASED" } } },
-      "then": { "required": ["stoppedConfirmation", "stoppedConfirmedAt", "releasedAt"] }
+      "then": {
+        "required": ["stoppedConfirmation", "stoppedConfirmedAt", "releasedAt"]
+      }
     }
   ],
   "additionalProperties": false

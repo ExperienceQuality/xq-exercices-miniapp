@@ -11,6 +11,7 @@
     onOpenSession,
     onAddSession,
     onCaptureSnapshot,
+    onDeleteRoutine,
     onReorderSessions,
     reorderPending = false,
   }: {
@@ -19,6 +20,7 @@
     onOpenSession: (id: string) => void;
     onAddSession: () => void;
     onCaptureSnapshot: () => void;
+    onDeleteRoutine: () => void;
     onReorderSessions: (sessionIds: readonly string[]) => Promise<void>;
     reorderPending?: boolean;
   } = $props();
@@ -53,6 +55,11 @@
   <p class="section-label">Routine</p>
   <h1 tabindex="-1">{routine.name}</h1>
   {#if routine.notes}<p class="subtitle">{routine.notes}</p>{/if}
+  <button
+    class="text-action danger routine-detail-delete"
+    type="button"
+    onclick={onDeleteRoutine}>Delete routine</button
+  >
 
   <div class="section-heading-row">
     <p class="section-label">Sessions</p>

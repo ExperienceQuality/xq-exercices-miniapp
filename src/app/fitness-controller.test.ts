@@ -565,3 +565,147 @@ describe('FitnessController exercise reordering', () => {
     expect(controller.reorderPending).toBe(false);
   });
 });
+
+describe('FitnessController delete-routine', () => {
+  // FIT-112 / FIT-115 / FIT-116 / FIT-118 / FIT-119 / FIT-120: controller
+  // delete path — cascade by id, announce only after commit, clear selection.
+  it('deletes by id, cascades, announces after commit, and clears selection', async () => {
+    const deps = dependencies();
+    const controller = new FitnessController(deps);
+    await controller.load();
+    await controller.saveRoutine('Keep', '');
+    const keepId = controller.routine!.id;
+    await controller.saveRoutine('Gone', '');
+    const goneId = controller.routine!.id;
+    await controller.saveSession('Upper');
+    await controller.saveExercise({
+      name: 'Press',
+      sets: 3,
+      repetitions: 10,
+      weightKg: 40,
+    });
+    await controller.snapshot();
+    expect(controller.notice).toBe('Progress snapshot captured.');
+    await controller.removeRoutine(goneId);
+    expect(controller.document.routines.map((routine) => routine.id)).toEqual([
+      keepId,
+    ]);
+    expect(controller.selectedRoutineId).toBeNull();
+    expect(controller.notice).toBe('Routine “Gone” deleted.');
+    expect(applyCalls(deps).at(-1)).toEqual([
+      controller.revision,
+      { kind: 'delete-routine', routineId: goneId },
+    ]);
+  });
+
+  it('deletes by id when names collide and rejects missing targets', async () => {
+    const deps = dependencies();
+    const controller = new FitnessController(deps);
+    await controller.load();
+    await controller.saveRoutine('Dup', '');
+    const first = controller.routine!.id;
+    await controller.saveRoutine('Dup', '');
+    const second = controller.routine!.id;
+    await controller.removeRoutine(first);
+    expect(controller.document.routines.map((routine) => routine.id)).toEqual([
+      second,
+    ]);
+    const writesBefore = applyCalls(deps).length;
+    await expect(controller.removeRoutine('missing')).rejects.toMatchObject({
+      code: 'missing-routine',
+    });
+    expect(applyCalls(deps).length).toBe(writesBefore);
+    expect(controller.error).toBe('The routine no longer exists.');
+  });
+
+  it('suppresses other mutations while delete is pending and never retargets', async () => {
+    const deps = dependencies();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const controller = new FitnessController(deps);
+    await controller.load();
+    await controller.saveRoutine('Keep', '');
+    const keepId = controller.routine!.id;
+    await controller.saveRoutine('Target', '');
+    const targetId = controller.routine!.id;
+    await controller.saveRoutine('Other', '');
+    const otherId = controller.routine!.id;
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
+      await gate;
+      return realApply(revision, mutation);
+    });
+    const pendingDelete = controller.removeRoutine(targetId);
+    expect(controller.deletePending).toBe(true);
+    controller.selectRoutine(otherId);
+    await controller.saveRoutine('Suppressed', '');
+    await controller.reorderSessions(keepId, []);
+    release();
+    await pendingDelete;
+    expect(controller.deletePending).toBe(false);
+    expect(controller.document.routines.map((routine) => routine.id)).toEqual([
+      keepId,
+      otherId,
+    ]);
+    expect(controller.document.routines.map((routine) => routine.name)).toEqual(
+      ['Keep', 'Other'],
+    );
+    expect(controller.selectedRoutineId).toBe(otherId);
+    expect(deps.repository.apply).toHaveBeenCalledTimes(1);
+    expect(deps.repository.apply).toHaveBeenCalledWith(1, {
+      kind: 'delete-routine',
+      routineId: targetId,
+    });
+  });
+
+  it('suppresses delete while another write is pending', async () => {
+    const deps = dependencies();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const controller = new FitnessController(deps);
+    await controller.load();
+    await controller.saveRoutine('Keep', '');
+    const keepId = controller.routine!.id;
+    const realApply = deps.repository.apply;
+    deps.repository.apply = vi.fn(async (revision, mutation) => {
+      await gate;
+      return realApply(revision, mutation);
+    });
+    const pendingSave = controller.saveRoutine('Busy', '');
+    expect(controller.deletePending).toBe(false);
+    await controller.removeRoutine(keepId);
+    release();
+    await pendingSave;
+    expect(controller.document.routines.map((routine) => routine.name)).toEqual(
+      ['Keep', 'Busy'],
+    );
+    expect(
+      applyCalls(deps).some(
+        ([, mutation]) => mutation.kind === 'delete-routine',
+      ),
+    ).toBe(false);
+  });
+
+  it('fails closed on storage errors without announcing delete', async () => {
+    const deps = dependencies();
+    const controller = new FitnessController(deps);
+    await controller.load();
+    await controller.saveRoutine('Keep', '');
+    const keepId = controller.routine!.id;
+    const documentBefore = controller.document;
+    const revisionBefore = controller.revision;
+    deps.repository.apply = vi.fn(async () => {
+      throw new Error('disk full');
+    });
+    await expect(controller.removeRoutine(keepId)).rejects.toThrow('disk full');
+    expect(controller.document).toBe(documentBefore);
+    expect(controller.revision).toBe(revisionBefore);
+    expect(controller.deletePending).toBe(false);
+    expect(controller.notice).toBe('');
+    expect(controller.error).toBe('disk full');
+  });
+});
