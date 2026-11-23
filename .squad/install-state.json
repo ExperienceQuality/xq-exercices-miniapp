@@ -20,7 +20,7 @@
     ".cursor/skills/squad-delivery/SKILL.md": "c95810531fb2d2b2fdf5781ca7b796c8d59942ffaad9fe2f92e911116c566a46",
     ".cursor/skills/train-me/SKILL.md": "6dcbb1dc94eb8b0f97a853d258aaf468c6cfa2bb2f9e87bd077541f92893301b",
     ".squad/MEMORY.md": "b3d949e414ec6244496f2a9ffd7ac9c3c7c97e917bf5b8787d8b54dedd2c264b",
-    ".squad/README.md": "cdd06255d1d7e63cd865509180ab93f61de3e27b7861d596947cb229e697401e",
+    ".squad/README.md": "b7b6d093d8462f5713b36b7b6f60dd6fafcc10e68ef5cc407021d49b44cbc7e8",
     ".squad/agents/analyst.md": "cb00a094b1196f1a67d2390367c99d6db86769c5b1442798a3a516dad0e5df4a",
     ".squad/agents/implementer.md": "cb15f63350284a1299a29be0c753389a15fe9cc61a8a930927dc0030db4f7850",
     ".squad/agents/lead.md": "4caa8992d2d534e03c78a19e1d97c08bb1103a2c7231a195491d99387364380f",
@@ -48,8 +48,8 @@
     ".squad/workflows/delivery.md": "6d8ff1f36a23fa2603a384ce0d3d03c16d8dd5fa0551c6fd538d57909a200949",
     ".squad/workflows/memory-maintenance.md": "f33f8c7ea04c2e6bd18572c1ed86684dff67709694ef98407f7f06a288b9bad5",
     ".squad/workflows/parallel-execution.md": "ea3783b9c3b15a5baef136df2f8c38175e2d60e2d5f9261e39ee247d20f376d6",
-    "AGENTS.md": "e0b840e02ac61365126f248c4280edbf5cbd8434ddcc43de94023ec1f20013d4",
-    ".cursor/skills/caveman/SKILL.md": "19494c813385db9269a1a08d0f9e163d29fe7a7fe552054be889472758e644fa"
+    "AGENTS.md": "9e8acb0f60f6770bc9b852513bf07e57d3814df5b9bce8b4b9eb4ec333e99610",
+    ".cursor/skills/caveman/SKILL.md": "bb8d846cfc8285b88641baa187f5ef20aced74284eb8d148ad5c766fea3ce7dd"
   },
   "retired_files": {},
   "ownership": {

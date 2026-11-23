@@ -20,13 +20,13 @@ Unsure if still on? It is. Confirm the switch-off in one line.
 
 Levels (stick until changed or session ends):
 
-| Trigger | Level |
-| --- | --- |
-| `/caveman` or `/caveman full` | Full (default) |
-| `/caveman lite` | Lite — tight prose, normal grammar |
-| `/caveman ultra` | Ultra — telegraphic |
-| `/caveman status` | Report level; do not change it |
-| `stop caveman` / `normal mode` | Off |
+| Trigger                        | Level                              |
+| ------------------------------ | ---------------------------------- |
+| `/caveman` or `/caveman full`  | Full (default)                     |
+| `/caveman lite`                | Lite — tight prose, normal grammar |
+| `/caveman ultra`               | Ultra — telegraphic                |
+| `/caveman status`              | Report level; do not change it     |
+| `stop caveman` / `normal mode` | Off                                |
 
 Loading this skill only to answer `/caveman status` is not activation.
 
