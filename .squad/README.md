@@ -3,7 +3,7 @@
 Repository-native agent squad for Cursor. No hosted service. No database. The Cursor Agent is the interface. This `.squad/` directory is the canonical, runtime-independent source of truth; `.cursor/` only adapts it to the runtime and must not weaken it.
 
 Installed release: see `release_tag` in `.squad/squad.json` (or `.squad/install-state.json`).
-Current upstream release: v2.0.0 — [releases](https://github.com/ExperienceQuality/xq-squad/releases),
+Current upstream release: v2.1.0 — [releases](https://github.com/ExperienceQuality/xq-squad/releases),
 [changelog](https://github.com/ExperienceQuality/xq-squad/blob/main/CHANGELOG.md).
 
 ## Layout
@@ -15,6 +15,7 @@ AGENTS.md                          # Always-on Lead instructions, managed sectio
   agents/                          # Cursor subagents (point to .squad/agents/)
   skills/squad-delivery/SKILL.md   # On-demand delivery skill
   skills/train-me/SKILL.md         # Tutor skill for learning a topic
+  skills/caveman/SKILL.md          # Terse caveman session voice
   skills/fetch-openapi-spec/SKILL.md # Sync OpenAPI contracts from xq-luthor
   hooks.json, hooks/xq-squad-*     # Git guard, scope guard, verify reminder
 .squad/
@@ -34,7 +35,7 @@ AGENTS.md                          # Always-on Lead instructions, managed sectio
 
 ## How to use
 
-1. Install a pinned release: `install.sh --target . --version v2.0.0` (or `curl -LsSf <release>/install.sh | sh -s -- --target . --version v2.0.0`).
+1. Install a pinned release: `install.sh --target . --version v2.1.0` (or `curl -LsSf <release>/install.sh | sh -s -- --target . --version v2.1.0`).
 2. Open Cursor Agent on this repository and describe the task in plain language — no commands or special syntax needed. `AGENTS.md` and `.cursor/rules/xq-squad.mdc` make the main agent the Agent Lead automatically.
 3. The Lead reads this README, follows `agents/lead.md`, and invokes the `squad-delivery` skill when useful.
 4. Specialist profiles in `.cursor/agents/` are delegated to as Cursor subagents; otherwise the Lead performs each role sequentially.
@@ -43,14 +44,14 @@ AGENTS.md                          # Always-on Lead instructions, managed sectio
 
 ## Roles and authority
 
-| Role                | Responsibility                                                      |
-| ------------------- | ------------------------------------------------------------------- |
-| Agent Lead          | Main agent session, never a subagent. Owns intake through delivery. |
-| `analyst`           | Repository discovery and impact analysis (read-only).               |
-| `implementer`       | Assigned code changes following repository conventions.             |
-| `tester`            | Relevant checks and test execution.                                 |
-| `reviewer`          | Change review and risk identification (read-only in Cursor).        |
-| `memory-maintainer` | Durable memory reconciliation and update.                           |
+| Role | Responsibility |
+| --- | --- |
+| Agent Lead | Main agent session, never a subagent. Owns intake through delivery. |
+| `analyst` | Repository discovery and impact analysis (read-only). |
+| `implementer` | Assigned code changes following repository conventions. |
+| `tester` | Relevant checks and test execution. |
+| `reviewer` | Change review and risk identification (read-only in Cursor). |
+| `memory-maintainer` | Durable memory reconciliation and update. |
 
 The Lead never commits, pushes, or opens a PR unless explicitly asked in the
 session. Before any authorized push or PR, it fetches the configured remote
@@ -68,6 +69,11 @@ Each skill ships in `.cursor/skills/`.
 - `train-me`: patient tutor. Triggered by requests such as "train me",
   "teach me", or "help me learn"; explains simply, uses analogies and short
   examples, and always explains why. No commands or options.
+- `caveman`: terse session voice. Trigger with `/caveman`, "caveman mode",
+  "be brief", or "less tokens"; stop with "stop caveman" or "normal mode".
+  Levels: `lite`, `full` (default), `ultra`, plus `/caveman status`. Payload
+  (code, commands, paths, errors) stays verbatim; persisted artifacts use
+  normal prose.
 - `fetch-openapi-spec`: syncs API contracts from `xq-luthor` (see below).
 
 ## OpenAPI contracts
